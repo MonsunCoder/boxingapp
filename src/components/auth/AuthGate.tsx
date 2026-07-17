@@ -3,16 +3,18 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import AgeGateScreen from './AgeGateScreen';
 import { useAuth } from './AuthProvider';
 import ConsentScreen from './ConsentScreen';
+import OnboardingFlow from './OnboardingFlow';
 import SignInScreen from './SignInScreen';
 import WaitingScreen from './WaitingScreen';
 
 /**
  * Decides what the user sees, in strict order (SPEC.md onboarding flow):
- *   signed out            -> SignInScreen
- *   no date of birth yet  -> AgeGateScreen
- *   under-13, no consent  -> ConsentScreen (ask a parent)
- *   under-13, pending     -> WaitingScreen (locked until parent approves)
- *   otherwise             -> the app
+ *   signed out             -> SignInScreen
+ *   no date of birth yet   -> AgeGateScreen
+ *   under-13, no consent   -> ConsentScreen (ask a parent)
+ *   under-13, pending      -> WaitingScreen (locked until parent approves)
+ *   onboarding not done    -> OnboardingFlow (goals -> Deal -> film -> First Bell)
+ *   otherwise              -> the app
  */
 export function AuthGate({ children }: { children: ReactNode }) {
   const { session, profile, loading, profileError, refreshProfile, signOut } = useAuth();
@@ -44,6 +46,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (!profile.dob) return <AgeGateScreen />;
   if (profile.is_minor && profile.consent_status === 'not_required') return <ConsentScreen />;
   if (profile.is_minor && profile.consent_status !== 'granted') return <WaitingScreen />;
+  if (!profile.onboarding_complete) return <OnboardingFlow />;
 
   return <>{children}</>;
 }

@@ -15,6 +15,9 @@ export type Profile = {
   dob: string | null;
   is_minor: boolean;
   consent_status: 'not_required' | 'pending' | 'granted' | 'revoked';
+  goals: string[];
+  words_first_optin: boolean;
+  onboarding_complete: boolean;
 };
 
 type AuthContextValue = {
@@ -31,7 +34,9 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 async function fetchProfile(userId: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, display_name, dob, is_minor, consent_status')
+    .select(
+      'id, display_name, dob, is_minor, consent_status, goals, words_first_optin, onboarding_complete',
+    )
     .eq('id', userId)
     .maybeSingle();
   if (error) throw new Error(error.message);

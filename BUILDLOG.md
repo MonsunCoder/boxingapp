@@ -25,3 +25,6 @@ Day 11 - ExpoGo and VS Setup - July 13
 
 Day 12 - Supabase Setup and Expo Testing - July 14
 		Supabase project live, schema ran clean, app reads content_items on my phone. Bug of the day: unsaved .env.
+
+Day 13 - Sign-in Testing - July 15-17 
+		Temp domain authenticated, OTP emails flowing both templates. Under-13 locks until consent granted. Bug of the day: unsaved template edits. TODOs: Apple Sign-In (EAS), real consent email (Edge Function), legal review pre-launch.
