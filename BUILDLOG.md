@@ -22,3 +22,6 @@ Day 10 - Architecture/SPEC.md + data model
 
 Day 11 - ExpoGo and VS Setup - July 13
         app runs on my phone, live updates work, pushed to GitHub.
+
+Day 12 - Supabase Setup and Expo Testing - July 14
+		Supabase project live, schema ran clean, app reads content_items on my phone. Bug of the day: unsaved .env.

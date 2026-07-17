@@ -1,5 +1,6 @@
+import { useAuth } from '@/components/auth/AuthProvider';
 import { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
 type ContentItem = {
@@ -10,6 +11,7 @@ type ContentItem = {
 };
 
 export default function HomeScreen() {
+  const { session, signOut } = useAuth();
   const [items, setItems] = useState<ContentItem[]>([]);
   const [status, setStatus] = useState('Loading…');
 
@@ -29,7 +31,8 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>BoxingApp — Day 12 🔔</Text>
+      <Text style={styles.header}>BoxingApp — Day 13 🥊</Text>
+      <Text style={styles.signedIn}>Signed in as {session?.user.email}</Text>
       {status !== '' && <Text style={styles.status}>{status}</Text>}
       <FlatList
         data={items}
@@ -41,15 +44,21 @@ export default function HomeScreen() {
           </View>
         )}
       />
+      <Pressable onPress={signOut} hitSlop={8} style={styles.signOut}>
+        <Text style={styles.signOutText}>Sign out</Text>
+      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: 80, paddingHorizontal: 20 },
-  header: { fontSize: 24, fontWeight: '700', marginBottom: 16 },
+  header: { fontSize: 24, fontWeight: '700' },
+  signedIn: { fontSize: 13, color: '#888', marginBottom: 16 },
   status: { fontSize: 16, color: '#888', marginBottom: 12 },
   card: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#ddd', marginBottom: 10 },
   title: { fontSize: 17, fontWeight: '600' },
   meta: { fontSize: 13, color: '#666', marginTop: 4 },
+  signOut: { paddingVertical: 16, alignItems: 'center' },
+  signOutText: { fontSize: 15, color: '#666', textDecorationLine: 'underline' },
 });
