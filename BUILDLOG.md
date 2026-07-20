@@ -28,3 +28,6 @@ Day 12 - Supabase Setup and Expo Testing - July 14
 
 Day 13 - Sign-in Testing - July 15-17 
 		Temp domain authenticated, OTP emails flowing both templates. Under-13 locks until consent granted. Bug of the day: unsaved template edits. TODOs: Apple Sign-In (EAS), real consent email (Edge Function), legal review pre-launch.
+
+Day 14 - Onboarding Flow - July 17
+		Claude wrote the onboarding and authorization code for me, I tested in Expo. The database was properly updated, signifying that everything worked.

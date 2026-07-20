@@ -1,3 +1,4 @@
+import { theme } from '@/constants/theme';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../../../lib/supabase';
@@ -78,18 +79,24 @@ export default function WaitingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 28, gap: 14 },
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.bg,
+    justifyContent: 'center',
+    padding: 28,
+    gap: 14,
+  },
   emoji: { fontSize: 48, textAlign: 'center' },
-  title: { fontSize: 26, fontWeight: '800', textAlign: 'center' },
-  subtitle: { fontSize: 15, color: '#777', textAlign: 'center', lineHeight: 22 },
+  title: { fontSize: theme.font.title, fontWeight: '800', textAlign: 'center', color: theme.colors.text },
+  subtitle: { fontSize: 15, color: theme.colors.muted, textAlign: 'center', lineHeight: 22 },
   button: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 28,
+    backgroundColor: theme.colors.red,
+    borderRadius: theme.radius.pill,
     paddingVertical: 15,
     alignItems: 'center',
     marginTop: 10,
   },
   buttonDisabled: { opacity: 0.5 },
   buttonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  link: { fontSize: 15, color: '#666', textAlign: 'center', textDecorationLine: 'underline' },
+  link: { fontSize: 15, color: theme.colors.muted, textAlign: 'center', textDecorationLine: 'underline' },
 });

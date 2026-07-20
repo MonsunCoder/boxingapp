@@ -1,3 +1,4 @@
+import { theme } from '@/constants/theme';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -75,7 +76,7 @@ export default function ConsentScreen() {
       <TextInput
         style={styles.input}
         placeholder="parent@email.com"
-        placeholderTextColor="#999"
+        placeholderTextColor={theme.colors.muted}
         autoCapitalize="none"
         keyboardType="email-address"
         value={parentEmail}
@@ -100,28 +101,34 @@ export default function ConsentScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 28, gap: 14 },
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.bg,
+    justifyContent: 'center',
+    padding: 28,
+    gap: 14,
+  },
   emoji: { fontSize: 48, textAlign: 'center' },
-  title: { fontSize: 26, fontWeight: '800', textAlign: 'center' },
-  subtitle: { fontSize: 15, color: '#777', textAlign: 'center', lineHeight: 22 },
+  title: { fontSize: theme.font.title, fontWeight: '800', textAlign: 'center', color: theme.colors.text },
+  subtitle: { fontSize: 15, color: theme.colors.muted, textAlign: 'center', lineHeight: 22 },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 12,
+    borderColor: theme.colors.line,
+    borderRadius: theme.radius.sm,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 17,
-    backgroundColor: '#fff',
-    color: '#111',
+    backgroundColor: theme.colors.surface,
+    color: theme.colors.text,
   },
   button: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 28,
+    backgroundColor: theme.colors.red,
+    borderRadius: theme.radius.pill,
     paddingVertical: 15,
     alignItems: 'center',
   },
   buttonDisabled: { opacity: 0.5 },
   buttonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  link: { fontSize: 15, color: '#666', textAlign: 'center', textDecorationLine: 'underline' },
-  message: { fontSize: 14, color: '#b3261e', textAlign: 'center' },
+  link: { fontSize: 15, color: theme.colors.muted, textAlign: 'center', textDecorationLine: 'underline' },
+  message: { fontSize: 14, color: theme.colors.danger, textAlign: 'center' },
 });

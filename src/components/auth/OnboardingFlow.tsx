@@ -1,3 +1,4 @@
+import { theme } from '@/constants/theme';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../../../lib/supabase';
@@ -149,15 +150,15 @@ export default function OnboardingFlow() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 28 },
+  container: { flex: 1, backgroundColor: theme.colors.bg, justifyContent: 'center', padding: 28 },
   dots: { flexDirection: 'row', gap: 8, justifyContent: 'center', marginBottom: 40 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#d8d8d2' },
-  dotActive: { backgroundColor: '#1a1a1a' },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.line },
+  dotActive: { backgroundColor: theme.colors.red },
   body: { gap: 18, alignItems: 'center' },
   bigEmoji: { fontSize: 52 },
-  title: { fontSize: 27, fontWeight: '800', textAlign: 'center' },
-  subtitle: { fontSize: 15, color: '#777', textAlign: 'center', lineHeight: 22 },
-  dealText: { fontSize: 16, color: '#444', textAlign: 'center', lineHeight: 24 },
+  title: { fontSize: 27, fontWeight: '800', textAlign: 'center', color: theme.colors.text },
+  subtitle: { fontSize: 15, color: theme.colors.muted, textAlign: 'center', lineHeight: 22 },
+  dealText: { fontSize: 16, color: theme.colors.text, textAlign: 'center', lineHeight: 24 },
   goalGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -168,30 +169,32 @@ const styles = StyleSheet.create({
   goalCard: {
     width: 140,
     height: 110,
-    borderRadius: 16,
+    borderRadius: theme.radius.md,
     borderWidth: 1,
-    borderColor: '#ccc',
-    backgroundColor: '#fff',
+    borderColor: theme.colors.line,
+    backgroundColor: theme.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   goalEmoji: { fontSize: 32 },
-  goalLabel: { fontSize: 15, fontWeight: '600' },
+  goalLabel: { fontSize: 15, fontWeight: '600', color: theme.colors.text },
   filmStage: {
     width: '100%',
     height: 200,
-    borderRadius: 16,
-    backgroundColor: '#111',
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
   },
-  playIcon: { fontSize: 44, color: '#fff' },
-  filmNote: { fontSize: 13, color: '#aaa' },
+  playIcon: { fontSize: 44, color: theme.colors.text },
+  filmNote: { fontSize: 13, color: theme.colors.muted },
   primary: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 28,
+    backgroundColor: theme.colors.red,
+    borderRadius: theme.radius.pill,
     paddingVertical: 16,
     paddingHorizontal: 40,
     alignItems: 'center',
@@ -200,5 +203,5 @@ const styles = StyleSheet.create({
   },
   disabled: { opacity: 0.5 },
   primaryText: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  error: { marginTop: 20, fontSize: 14, color: '#b3261e', textAlign: 'center' },
+  error: { marginTop: 20, fontSize: 14, color: theme.colors.danger, textAlign: 'center' },
 });

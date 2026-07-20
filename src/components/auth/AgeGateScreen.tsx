@@ -1,3 +1,4 @@
+import { theme } from '@/constants/theme';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -76,7 +77,7 @@ export default function AgeGateScreen() {
         <TextInput
           style={styles.input}
           placeholder="MM"
-          placeholderTextColor="#999"
+          placeholderTextColor={theme.colors.muted}
           keyboardType="number-pad"
           maxLength={2}
           value={month}
@@ -86,7 +87,7 @@ export default function AgeGateScreen() {
         <TextInput
           style={styles.input}
           placeholder="DD"
-          placeholderTextColor="#999"
+          placeholderTextColor={theme.colors.muted}
           keyboardType="number-pad"
           maxLength={2}
           value={day}
@@ -96,7 +97,7 @@ export default function AgeGateScreen() {
         <TextInput
           style={[styles.input, styles.year]}
           placeholder="YYYY"
-          placeholderTextColor="#999"
+          placeholderTextColor={theme.colors.muted}
           keyboardType="number-pad"
           maxLength={4}
           value={year}
@@ -118,29 +119,35 @@ export default function AgeGateScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 28 },
-  title: { fontSize: 26, fontWeight: '800', textAlign: 'center' },
-  subtitle: { fontSize: 15, color: '#777', textAlign: 'center', marginTop: 10, marginBottom: 28 },
+  container: { flex: 1, backgroundColor: theme.colors.bg, justifyContent: 'center', padding: 28 },
+  title: { fontSize: theme.font.title, fontWeight: '800', textAlign: 'center', color: theme.colors.text },
+  subtitle: {
+    fontSize: 15,
+    color: theme.colors.muted,
+    textAlign: 'center',
+    marginTop: 10,
+    marginBottom: 28,
+  },
   row: { flexDirection: 'row', gap: 10, justifyContent: 'center', marginBottom: 20 },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 12,
+    borderColor: theme.colors.line,
+    borderRadius: theme.radius.sm,
     paddingVertical: 14,
     width: 68,
     textAlign: 'center',
     fontSize: 20,
-    backgroundColor: '#fff',
-    color: '#111',
+    backgroundColor: theme.colors.surface,
+    color: theme.colors.text,
   },
   year: { width: 96 },
   button: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 28,
+    backgroundColor: theme.colors.red,
+    borderRadius: theme.radius.pill,
     paddingVertical: 15,
     alignItems: 'center',
   },
   buttonDisabled: { opacity: 0.5 },
   buttonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  message: { marginTop: 18, fontSize: 14, color: '#b3261e', textAlign: 'center' },
+  message: { marginTop: 18, fontSize: 14, color: theme.colors.danger, textAlign: 'center' },
 });

@@ -1,11 +1,39 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Design tokens for BoxingApp (Day 15).
+ *
+ * A single dark theme — colors, radii, spacing, and font sizes — used across
+ * every screen. Import `theme` and reference tokens directly:
+ *
+ *   import { theme } from '@/constants/theme';
+ *   backgroundColor: theme.colors.bg
  */
 
 import '@/global.css';
 
 import { Platform } from 'react-native';
+
+export const theme = {
+  colors: {
+    bg: '#0E0F12', // app background (dark charcoal)
+    surface: '#17181C', // cards, tab bar
+    line: '#26272C', // borders/dividers
+    text: '#F5F5F2', // primary text
+    muted: '#9A9AA2', // secondary text
+    red: '#E6394B', // primary action (boxing red)
+    gold: '#F4B942', // XP, rank, streak highlights
+    green: '#3DBE7B', // success / rest phase
+    danger: '#FF5A5A', // errors
+  },
+  radius: { sm: 8, md: 14, lg: 24, pill: 28 },
+  space: { xs: 4, sm: 8, md: 16, lg: 24, xl: 36 },
+  font: { title: 26, header: 20, body: 16, small: 13 },
+} as const;
+
+/* ------------------------------------------------------------------ *
+ * Legacy tokens — kept for the Expo starter components that still
+ * import them (themed-text, themed-view, collapsible, etc.). Not used
+ * by Day 15 screens; leave in place until those files are retired.
+ * ------------------------------------------------------------------ */
 
 export const Colors = {
   light: {
@@ -28,13 +56,9 @@ export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
     sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
   },
   default: {
