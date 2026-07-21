@@ -34,3 +34,6 @@ Day 14 - Onboarding Flow - July 17
 
 Day 15 - Navigation Shell + Theme Testing - July 20
 		Five bottom tabs, theme tokens file with demo-site palette, all screens restyled. App looks like one product now.
+
+Day 16 - Training/Timer Setup - July 20
+		Claude wrote code to create a mock timer for First Bell. I ensured that all content can be changed and restructured as we go on with development.
