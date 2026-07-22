@@ -37,3 +37,6 @@ Day 15 - Navigation Shell + Theme Testing - July 20
 
 Day 16 - Training/Timer Setup - July 20
 		Claude wrote code to create a mock timer for First Bell. I ensured that all content can be changed and restructured as we go on with development.
+
+Day 17 - TTS Setup - July 21
+		TTS callouts on cadence, spoken transitions, summary screen writes to xp_events via complete_activity — anti-grind confirmed in-app. Voice + pacing are placeholders pending client.
