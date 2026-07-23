@@ -40,3 +40,6 @@ Day 16 - Training/Timer Setup - July 20
 
 Day 17 - TTS Setup - July 21
 		TTS callouts on cadence, spoken transitions, summary screen writes to xp_events via complete_activity — anti-grind confirmed in-app. Voice + pacing are placeholders pending client.
+
+Day 18 - Mark as Complete - July 22
+		(light day — pipeline pre-built Day 10). Learn tab marks lessons complete via the same RPC as workouts; XP/level chip live. Mixed event types verified in xp_events.

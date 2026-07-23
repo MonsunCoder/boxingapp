@@ -1,25 +1,257 @@
-import { StyleSheet, Text, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useAuth } from '@/components/auth/AuthProvider';
 import { theme } from '@/constants/theme';
+import { supabase } from '../../lib/supabase';
+
+/**
+ * Day 19 — Progress dashboard: XP + level (with bar), streak, recent activity.
+ * Level curve is CONFIG read from the level_curve table (L2–L10), +350/level after —
+ * tuning the economy later is a data edit. Rank card is a placeholder until Day 21.
+ * Level-up celebration: compares current level to the last level seen on this
+ * device (AsyncStorage) and throws a small party when it rose.
+ */
+
+type CurveRow = { level: number; cumulative_xp: number };
+type EventRow = {
+  xp: number;
+  event_type: string;
+  occurred_on: string;
+  content_items: { title: string } | null;
+};
+
+const LAST_SEEN_LEVEL_KEY = 'lastSeenLevel';
+
+function cumulativeXpFor(level: number, curve: CurveRow[]): number {
+  if (level <= 1) return 0;
+  if (level <= 10) return curve.find((c) => c.level === level)?.cumulative_xp ?? 0;
+  const l10 = curve.find((c) => c.level === 10)?.cumulative_xp ?? 2340;
+  return l10 + (level - 10) * 350;
+}
 
 export default function ProgressScreen() {
+  const { session } = useAuth();
+  const [totalXp, setTotalXp] = useState(0);
+  const [level, setLevel] = useState(1);
+  const [barPct, setBarPct] = useState(0);
+  const [xpIntoLevel, setXpIntoLevel] = useState(0);
+  const [xpForLevel, setXpForLevel] = useState(100);
+  const [streak, setStreak] = useState<{ current: number; longest: number; freezes_banked: number } | null>(null);
+  const [recent, setRecent] = useState<EventRow[]>([]);
+  const [status, setStatus] = useState('Loading…');
+  const [celebrate, setCelebrate] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    if (!session) return;
+    try {
+      const [{ data: events }, { data: lvl }, { data: curve }, { data: streakRow }, { data: recentRows }] =
+        await Promise.all([
+          supabase.from('xp_events').select('xp'),
+          supabase.rpc('user_level', { p_user: session.user.id }),
+          supabase.from('level_curve').select('level, cumulative_xp').order('level'),
+          supabase.from('streaks').select('current, longest, freezes_banked').maybeSingle(),
+          supabase
+            .from('xp_events')
+            .select('xp, event_type, occurred_on, content_items(title)')
+            .order('occurred_at', { ascending: false })
+            .limit(5),
+        ]);
+
+      const xp = (events ?? []).reduce((sum, e) => sum + (e.xp ?? 0), 0);
+      const lv = typeof lvl === 'number' ? lvl : 1;
+      const start = cumulativeXpFor(lv, (curve ?? []) as CurveRow[]);
+      const next = cumulativeXpFor(lv + 1, (curve ?? []) as CurveRow[]);
+      const into = xp - start;
+      const span = Math.max(1, next - start);
+
+      setTotalXp(xp);
+      setLevel(lv);
+      setXpIntoLevel(into);
+      setXpForLevel(span);
+      setBarPct(Math.min(100, Math.round((into / span) * 100)));
+      setStreak(streakRow ?? null);
+      setRecent((recentRows ?? []) as unknown as EventRow[]);
+      setStatus('');
+
+      // Level-up celebration: did the level rise since we last looked?
+      const seenRaw = await AsyncStorage.getItem(LAST_SEEN_LEVEL_KEY);
+      const seen = seenRaw ? parseInt(seenRaw, 10) : null;
+      if (seen !== null && lv > seen) setCelebrate(lv);
+      await AsyncStorage.setItem(LAST_SEEN_LEVEL_KEY, String(lv));
+    } catch (e: unknown) {
+      setStatus(e instanceof Error ? `Error: ${e.message}` : 'Something went wrong.');
+    }
+  }, [session]);
+
+  // Reload every time the tab gains focus, so XP earned in Train/Learn shows up.
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Progress</Text>
-      <Text style={styles.tagline}>XP, ranks, and streaks land soon 📈</Text>
-    </View>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <Text style={styles.header}>Progress</Text>
+      {status !== '' && <Text style={styles.status}>{status}</Text>}
+
+      {/* Top row: Level card + Rank card side-by-side (per dashboard decision) */}
+      <View style={styles.topRow}>
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Level</Text>
+          <Text style={styles.levelNum}>{level}</Text>
+          <View style={styles.barTrack}>
+            <View style={[styles.barFill, { width: `${barPct}%` }]} />
+          </View>
+          <Text style={styles.cardMeta}>
+            {xpIntoLevel} / {xpForLevel} XP to LV {level + 1}
+          </Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Rank</Text>
+          <Text style={styles.rankEmoji}>🥋</Text>
+          <Text style={styles.cardBody}>Prospect</Text>
+          <Text style={styles.cardMeta}>Ranks arrive Day 21</Text>
+        </View>
+      </View>
+
+      {/* Streak */}
+      <View style={styles.wideCard}>
+        <View style={styles.streakRow}>
+          <Text style={styles.streakFlame}>🔥</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardBody}>
+              {streak?.current ?? 0}-day streak
+              {streak && streak.longest > streak.current ? `  ·  best ${streak.longest}` : ''}
+            </Text>
+            <Text style={styles.cardMeta}>❄ {streak?.freezes_banked ?? 0} freeze banked · quests arrive Day 20</Text>
+          </View>
+          <Text style={styles.totalXp}>{totalXp} XP</Text>
+        </View>
+      </View>
+
+      {/* Recent activity */}
+      <Text style={styles.sectionTitle}>Recent activity</Text>
+      {recent.length === 0 && <Text style={styles.cardMeta}>Complete something — it shows up here.</Text>}
+      {recent.map((e, i) => (
+        <View key={i} style={styles.eventRow}>
+          <Text style={styles.cardBody} numberOfLines={1}>
+            {e.content_items?.title ?? e.event_type.replace('_', ' ')}
+          </Text>
+          <Text style={styles.eventMeta}>
+            {e.occurred_on} · <Text style={styles.gold}>+{e.xp} XP</Text>
+          </Text>
+        </View>
+      ))}
+
+      {/* Level-up celebration */}
+      <Modal visible={celebrate !== null} transparent animationType="fade">
+        <View style={styles.celebrateWrap}>
+          <View style={styles.celebrateCard}>
+            <Text style={styles.celebrateEmoji}>🎉</Text>
+            <Text style={styles.celebrateTitle}>LEVEL UP!</Text>
+            <Text style={styles.celebrateLevel}>LV {celebrate}</Text>
+            <Text style={styles.cardMeta}>Keep showing up. It counts.</Text>
+            <Pressable style={styles.celebrateBtn} onPress={() => setCelebrate(null)}>
+              <Text style={styles.celebrateBtnText}>Let’s go</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: { flex: 1, backgroundColor: theme.colors.bg },
+  content: { paddingTop: 72, paddingHorizontal: theme.space.md, paddingBottom: theme.space.xl, gap: theme.space.sm },
+  header: { fontSize: theme.font.title, fontWeight: '800', color: theme.colors.text, marginBottom: theme.space.sm },
+  status: { fontSize: theme.font.body, color: theme.colors.muted },
+  topRow: { flexDirection: 'row', gap: theme.space.sm },
+  card: {
     flex: 1,
-    backgroundColor: theme.colors.bg,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    padding: theme.space.md,
+    gap: 6,
+    alignItems: 'center',
+  },
+  wideCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    padding: theme.space.md,
+    marginTop: theme.space.sm,
+  },
+  cardLabel: { fontSize: theme.font.small, color: theme.colors.muted, textTransform: 'uppercase', letterSpacing: 1 },
+  levelNum: { fontSize: 44, fontWeight: '800', color: theme.colors.gold },
+  rankEmoji: { fontSize: 36 },
+  cardBody: { fontSize: theme.font.body, color: theme.colors.text, fontWeight: '600' },
+  cardMeta: { fontSize: theme.font.small, color: theme.colors.muted, textAlign: 'center' },
+  barTrack: {
+    alignSelf: 'stretch',
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: theme.colors.line,
+    overflow: 'hidden',
+  },
+  barFill: { height: '100%', backgroundColor: theme.colors.gold, borderRadius: 5 },
+  streakRow: { flexDirection: 'row', alignItems: 'center', gap: theme.space.sm },
+  streakFlame: { fontSize: 30 },
+  totalXp: { fontSize: theme.font.header, fontWeight: '800', color: theme.colors.gold },
+  sectionTitle: {
+    fontSize: theme.font.header,
+    fontWeight: '700',
+    color: theme.colors.text,
+    marginTop: theme.space.md,
+  },
+  eventRow: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    paddingVertical: 10,
+    paddingHorizontal: theme.space.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: theme.space.sm,
+  },
+  eventMeta: { fontSize: theme.font.small, color: theme.colors.muted },
+  gold: { color: theme.colors.gold, fontWeight: '700' },
+  celebrateWrap: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: theme.space.lg,
-    gap: theme.space.sm,
   },
-  title: { fontSize: theme.font.title, fontWeight: '800', color: theme.colors.text },
-  tagline: { fontSize: theme.font.body, color: theme.colors.muted, textAlign: 'center' },
+  celebrateCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.lg,
+    borderWidth: 2,
+    borderColor: theme.colors.gold,
+    padding: theme.space.xl,
+    alignItems: 'center',
+    gap: theme.space.sm,
+    alignSelf: 'stretch',
+  },
+  celebrateEmoji: { fontSize: 56 },
+  celebrateTitle: { fontSize: theme.font.header, fontWeight: '800', color: theme.colors.text, letterSpacing: 4 },
+  celebrateLevel: { fontSize: 52, fontWeight: '800', color: theme.colors.gold },
+  celebrateBtn: {
+    backgroundColor: theme.colors.red,
+    borderRadius: theme.radius.pill,
+    paddingVertical: 12,
+    paddingHorizontal: 44,
+    marginTop: theme.space.sm,
+  },
+  celebrateBtnText: { color: '#fff', fontSize: theme.font.body, fontWeight: '800' },
 });
