@@ -18,6 +18,7 @@ export type Profile = {
   goals: string[];
   words_first_optin: boolean;
   onboarding_complete: boolean;
+  timezone: string;
 };
 
 type AuthContextValue = {
@@ -35,7 +36,7 @@ async function fetchProfile(userId: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from('profiles')
     .select(
-      'id, display_name, dob, is_minor, consent_status, goals, words_first_optin, onboarding_complete',
+      'id, display_name, dob, is_minor, consent_status, goals, words_first_optin, onboarding_complete, timezone',
     )
     .eq('id', userId)
     .maybeSingle();
@@ -59,6 +60,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await new Promise((resolve) => setTimeout(resolve, 1200));
         p = await fetchProfile(userId);
       }
+
+      // Timezone sync: streaks/quests/anti-grind all reset at the KID'S local
+      // midnight (profiles.timezone). Default is UTC, so learn the device's
+      // real timezone on every sign-in and keep the profile current.
+      if (p) {
+        try {
+          const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          if (deviceTz && p.timezone !== deviceTz) {
+            await supabase.from('profiles').update({ timezone: deviceTz }).eq('id', userId);
+            p = { ...p, timezone: deviceTz };
+          }
+        } catch {
+          // Intl unavailable on this device — keep the stored timezone.
+        }
+      }
+
       setProfile(p);
       if (!p) setProfileError('Could not load your profile.');
     } catch (e: unknown) {

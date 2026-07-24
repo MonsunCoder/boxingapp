@@ -8,14 +8,14 @@ import { theme } from '@/constants/theme';
 import { supabase } from '../../lib/supabase';
 
 /**
- * Day 19 — Progress dashboard: XP + level (with bar), streak, recent activity.
- * Level curve is CONFIG read from the level_curve table (L2–L10), +350/level after —
- * tuning the economy later is a data edit. Rank card is a placeholder until Day 21.
- * Level-up celebration: compares current level to the last level seen on this
- * device (AsyncStorage) and throws a small party when it rose.
+ * Day 19+20 — Progress dashboard: XP + level bar, streak w/ freeze bank,
+ * 3 daily quests (auto-completed server-side by refresh_daily), recent activity,
+ * level-up celebration. refresh_daily runs FIRST on load so freshly awarded
+ * quest XP is included in the totals shown.
  */
 
 type CurveRow = { level: number; cumulative_xp: number };
+type Quest = { key: string; label: string; xp: number; done: boolean };
 type EventRow = {
   xp: number;
   event_type: string;
@@ -39,7 +39,7 @@ export default function ProgressScreen() {
   const [barPct, setBarPct] = useState(0);
   const [xpIntoLevel, setXpIntoLevel] = useState(0);
   const [xpForLevel, setXpForLevel] = useState(100);
-  const [streak, setStreak] = useState<{ current: number; longest: number; freezes_banked: number } | null>(null);
+  const [daily, setDaily] = useState<{ streak: number; longest: number; freezes: number; quests: Quest[] } | null>(null);
   const [recent, setRecent] = useState<EventRow[]>([]);
   const [status, setStatus] = useState('Loading…');
   const [celebrate, setCelebrate] = useState<number | null>(null);
@@ -47,12 +47,17 @@ export default function ProgressScreen() {
   const load = useCallback(async () => {
     if (!session) return;
     try {
-      const [{ data: events }, { data: lvl }, { data: curve }, { data: streakRow }, { data: recentRows }] =
+      // 1 · run the daily engine first (freeze grant/apply, quests, quest XP)
+      const { data: dailyData, error: dailyError } = await supabase.rpc('refresh_daily');
+      if (dailyError) throw new Error(dailyError.message);
+      setDaily(dailyData as typeof daily);
+
+      // 2 · then read totals (includes any XP the engine just awarded)
+      const [{ data: events }, { data: lvl }, { data: curve }, { data: recentRows }] =
         await Promise.all([
           supabase.from('xp_events').select('xp'),
           supabase.rpc('user_level', { p_user: session.user.id }),
           supabase.from('level_curve').select('level, cumulative_xp').order('level'),
-          supabase.from('streaks').select('current, longest, freezes_banked').maybeSingle(),
           supabase
             .from('xp_events')
             .select('xp, event_type, occurred_on, content_items(title)')
@@ -72,11 +77,9 @@ export default function ProgressScreen() {
       setXpIntoLevel(into);
       setXpForLevel(span);
       setBarPct(Math.min(100, Math.round((into / span) * 100)));
-      setStreak(streakRow ?? null);
       setRecent((recentRows ?? []) as unknown as EventRow[]);
       setStatus('');
 
-      // Level-up celebration: did the level rise since we last looked?
       const seenRaw = await AsyncStorage.getItem(LAST_SEEN_LEVEL_KEY);
       const seen = seenRaw ? parseInt(seenRaw, 10) : null;
       if (seen !== null && lv > seen) setCelebrate(lv);
@@ -86,19 +89,20 @@ export default function ProgressScreen() {
     }
   }, [session]);
 
-  // Reload every time the tab gains focus, so XP earned in Train/Learn shows up.
   useFocusEffect(
     useCallback(() => {
       load();
     }, [load]),
   );
 
+  const questsDone = daily?.quests.filter((q) => q.done).length ?? 0;
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.header}>Progress</Text>
       {status !== '' && <Text style={styles.status}>{status}</Text>}
 
-      {/* Top row: Level card + Rank card side-by-side (per dashboard decision) */}
+      {/* Top row: Level + Rank */}
       <View style={styles.topRow}>
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Level</Text>
@@ -119,19 +123,39 @@ export default function ProgressScreen() {
         </View>
       </View>
 
-      {/* Streak */}
+      {/* Streak + freeze bank */}
       <View style={styles.wideCard}>
         <View style={styles.streakRow}>
           <Text style={styles.streakFlame}>🔥</Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardBody}>
-              {streak?.current ?? 0}-day streak
-              {streak && streak.longest > streak.current ? `  ·  best ${streak.longest}` : ''}
+              {daily?.streak ?? 0}-day streak
+              {daily && daily.longest > daily.streak ? `  ·  best ${daily.longest}` : ''}
             </Text>
-            <Text style={styles.cardMeta}>❄ {streak?.freezes_banked ?? 0} freeze banked · quests arrive Day 20</Text>
+            <Text style={styles.cardMeta}>❄ {daily?.freezes ?? 0} freeze{(daily?.freezes ?? 0) === 1 ? '' : 's'} banked — one auto-protects a missed day</Text>
           </View>
           <Text style={styles.totalXp}>{totalXp} XP</Text>
         </View>
+      </View>
+
+      {/* Daily quests */}
+      <View style={styles.wideCard}>
+        <View style={styles.questHeader}>
+          <Text style={styles.cardBody}>Daily Quests</Text>
+          <Text style={styles.cardMeta}>{questsDone}/3 done</Text>
+        </View>
+        {(daily?.quests ?? []).map((q) => (
+          <View key={q.key} style={styles.questRow}>
+            <Text style={styles.questTick}>{q.done ? '✅' : '⬜'}</Text>
+            <Text style={[styles.questLabel, q.done && styles.questDone]} numberOfLines={1}>
+              {q.label}
+            </Text>
+            <Text style={styles.gold}>+{q.xp}</Text>
+          </View>
+        ))}
+        {questsDone >= 3 && (
+          <Text style={styles.bonusLine}>All 3 done — +20 XP bonus! 🎉</Text>
+        )}
       </View>
 
       {/* Recent activity */}
@@ -189,12 +213,13 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.line,
     padding: theme.space.md,
     marginTop: theme.space.sm,
+    gap: theme.space.sm,
   },
   cardLabel: { fontSize: theme.font.small, color: theme.colors.muted, textTransform: 'uppercase', letterSpacing: 1 },
   levelNum: { fontSize: 44, fontWeight: '800', color: theme.colors.gold },
   rankEmoji: { fontSize: 36 },
   cardBody: { fontSize: theme.font.body, color: theme.colors.text, fontWeight: '600' },
-  cardMeta: { fontSize: theme.font.small, color: theme.colors.muted, textAlign: 'center' },
+  cardMeta: { fontSize: theme.font.small, color: theme.colors.muted },
   barTrack: {
     alignSelf: 'stretch',
     height: 10,
@@ -206,6 +231,12 @@ const styles = StyleSheet.create({
   streakRow: { flexDirection: 'row', alignItems: 'center', gap: theme.space.sm },
   streakFlame: { fontSize: 30 },
   totalXp: { fontSize: theme.font.header, fontWeight: '800', color: theme.colors.gold },
+  questHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  questRow: { flexDirection: 'row', alignItems: 'center', gap: theme.space.sm },
+  questTick: { fontSize: 18 },
+  questLabel: { flex: 1, fontSize: theme.font.body, color: theme.colors.text },
+  questDone: { color: theme.colors.muted, textDecorationLine: 'line-through' },
+  bonusLine: { fontSize: theme.font.body, color: theme.colors.gold, fontWeight: '700', textAlign: 'center' },
   sectionTitle: {
     fontSize: theme.font.header,
     fontWeight: '700',

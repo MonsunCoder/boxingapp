@@ -43,3 +43,6 @@ Day 17 - TTS Setup - July 21
 
 Day 18 - Mark as Complete - July 22
 		(light day — pipeline pre-built Day 10). Learn tab marks lessons complete via the same RPC as workouts; XP/level chip live. Mixed event types verified in xp_events.
+
+Day 19 - Progress and Level Bars - July 23
+		Dashboard live — bar moves on completion, level computed from level_curve table, streak and recent activity showing real data. LEVEL UP overlay fired crossing 250 XP → LV 3.

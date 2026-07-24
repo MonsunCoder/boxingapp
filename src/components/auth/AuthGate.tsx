@@ -1,4 +1,3 @@
-import { theme } from '@/constants/theme';
 import { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import AgeGateScreen from './AgeGateScreen';
@@ -16,6 +15,10 @@ import WaitingScreen from './WaitingScreen';
  *   under-13, pending      -> WaitingScreen (locked until parent approves)
  *   onboarding not done    -> OnboardingFlow (goals -> Deal -> film -> First Bell)
  *   otherwise              -> the app
+ *
+ * NOTE (2026-07-24): the OnboardingFlow gate was silently lost in a stale-file
+ * overwrite during the Day 15 build and restored today. If onboarding ever
+ * stops appearing for new accounts, check this file first.
  */
 export function AuthGate({ children }: { children: ReactNode }) {
   const { session, profile, loading, profileError, refreshProfile, signOut } = useAuth();
@@ -23,7 +26,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={theme.colors.red} />
+        <ActivityIndicator size="large" />
       </View>
     );
   }
@@ -53,21 +56,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  center: {
-    flex: 1,
-    backgroundColor: theme.colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: theme.space.lg,
-    gap: theme.space.md,
-  },
-  error: { fontSize: theme.font.body, color: theme.colors.danger, textAlign: 'center' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
+  error: { fontSize: 16, color: '#b3261e', textAlign: 'center' },
   button: {
-    backgroundColor: theme.colors.red,
-    borderRadius: theme.radius.lg,
-    paddingHorizontal: theme.radius.pill,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 24,
+    paddingHorizontal: 28,
     paddingVertical: 12,
   },
-  buttonText: { color: '#fff', fontSize: theme.font.body, fontWeight: '600' },
-  link: { fontSize: 15, color: theme.colors.muted, textDecorationLine: 'underline' },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  link: { fontSize: 15, color: '#666', textDecorationLine: 'underline' },
 });
