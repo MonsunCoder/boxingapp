@@ -46,3 +46,9 @@ Day 18 - Mark as Complete - July 22
 
 Day 19 - Progress and Level Bars - July 23
 		Dashboard live — bar moves on completion, level computed from level_curve table, streak and recent activity showing real data. LEVEL UP overlay fired crossing 250 XP → LV 3.
+
+Day 20 - Freeze Banking - July 24
+		refresh_daily engine live — quests auto-ticking from the event stream, all-3 bonus pays, freeze simulation verified end-to-end (streak survived a missed day, freeze consumed, no re-grant until Monday). Supabase connector now lets Claude run migrations directly. Timezones recalibrated.
+
+Day 21 - Belts and Ranks - July 27
+		Rank ladder live end-to-end. Ladder is data (rank_tiers + rank_degrees pointing at pathways), so retuning it is a row edit not a code change. New rank_status() RPC returns the whole screen in one call; try_rank_up() still does the actual promoting server-side. Prospect → Novice I → II → III seeded with placeholder pathways. Dry-ran the promotion in a rolled-back transaction: rank-up succeeded, second attempt correctly blocked on the two unfinished Footwork items. Ethics arrays deliberately empty — the gate goes on tomorrow. Design catch of the day: a degree pointing at an empty pathway would have handed out a free belt, so the migration now refuses to apply if that's ever true.

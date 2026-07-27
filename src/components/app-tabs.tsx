@@ -10,6 +10,10 @@ import { theme } from '@/constants/theme';
  * Icons are emoji rendered in a <Text> so they behave identically on iOS,
  * Android, and web without any asset/vector-icon dependency. Active/inactive
  * state is carried by the label tint plus icon opacity.
+ *
+ * Day 21: `ladder` is a real route but NOT a sixth tab — href: null keeps it
+ * out of the tab bar. It is reached one tap deep from the Progress rank card
+ * (screen-list decision D7: hub first, ladder behind "See Ladder").
  */
 
 function TabIcon({ glyph, focused }: { glyph: string; focused: boolean }) {
@@ -65,6 +69,9 @@ export default function AppTabs() {
           tabBarIcon: ({ focused }) => <TabIcon glyph="👤" focused={focused} />,
         }}
       />
+
+      {/* Reachable by navigation, hidden from the tab bar. */}
+      <Tabs.Screen name="ladder" options={{ href: null }} />
     </Tabs>
   );
 }

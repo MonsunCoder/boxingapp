@@ -1,17 +1,21 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/components/auth/AuthProvider';
+import { RankStatus, rankLabel } from '@/constants/ranks';
 import { theme } from '@/constants/theme';
 import { supabase } from '../../lib/supabase';
 
 /**
- * Day 19+20 — Progress dashboard: XP + level bar, streak w/ freeze bank,
- * 3 daily quests (auto-completed server-side by refresh_daily), recent activity,
- * level-up celebration. refresh_daily runs FIRST on load so freshly awarded
- * quest XP is included in the totals shown.
+ * Day 19+20+21 — Progress dashboard: XP + level bar, rank card, streak w/ freeze
+ * bank, 3 daily quests (auto-completed server-side by refresh_daily), recent
+ * activity, level-up celebration. refresh_daily runs FIRST on load so freshly
+ * awarded quest XP is included in the totals shown.
+ *
+ * Day 21: the Rank card is real. It reads rank_status() and taps through to the
+ * ladder (decision D7 — the hub stays calm, the checklist lives one tap deep).
  */
 
 type CurveRow = { level: number; cumulative_xp: number };
@@ -34,12 +38,14 @@ function cumulativeXpFor(level: number, curve: CurveRow[]): number {
 
 export default function ProgressScreen() {
   const { session } = useAuth();
+  const router = useRouter();
   const [totalXp, setTotalXp] = useState(0);
   const [level, setLevel] = useState(1);
   const [barPct, setBarPct] = useState(0);
   const [xpIntoLevel, setXpIntoLevel] = useState(0);
   const [xpForLevel, setXpForLevel] = useState(100);
   const [daily, setDaily] = useState<{ streak: number; longest: number; freezes: number; quests: Quest[] } | null>(null);
+  const [rank, setRank] = useState<RankStatus | null>(null);
   const [recent, setRecent] = useState<EventRow[]>([]);
   const [status, setStatus] = useState('Loading…');
   const [celebrate, setCelebrate] = useState<number | null>(null);
@@ -53,7 +59,7 @@ export default function ProgressScreen() {
       setDaily(dailyData as typeof daily);
 
       // 2 · then read totals (includes any XP the engine just awarded)
-      const [{ data: events }, { data: lvl }, { data: curve }, { data: recentRows }] =
+      const [{ data: events }, { data: lvl }, { data: curve }, { data: recentRows }, { data: rankData }] =
         await Promise.all([
           supabase.from('xp_events').select('xp'),
           supabase.rpc('user_level', { p_user: session.user.id }),
@@ -63,6 +69,7 @@ export default function ProgressScreen() {
             .select('xp, event_type, occurred_on, content_items(title)')
             .order('occurred_at', { ascending: false })
             .limit(5),
+          supabase.rpc('rank_status'),
         ]);
 
       const xp = (events ?? []).reduce((sum, e) => sum + (e.xp ?? 0), 0);
@@ -78,6 +85,7 @@ export default function ProgressScreen() {
       setXpForLevel(span);
       setBarPct(Math.min(100, Math.round((into / span) * 100)));
       setRecent((recentRows ?? []) as unknown as EventRow[]);
+      setRank((rankData as RankStatus) ?? null);
       setStatus('');
 
       const seenRaw = await AsyncStorage.getItem(LAST_SEEN_LEVEL_KEY);
@@ -110,17 +118,29 @@ export default function ProgressScreen() {
           <View style={styles.barTrack}>
             <View style={[styles.barFill, { width: `${barPct}%` }]} />
           </View>
-          <Text style={styles.cardMeta}>
+          <Text style={styles.cardMetaCenter}>
             {xpIntoLevel} / {xpForLevel} XP to LV {level + 1}
           </Text>
         </View>
 
-        <View style={styles.card}>
+        {/* Rank — taps through to the ladder (D7) */}
+        <Pressable
+          style={({ pressed }) => [styles.card, rank?.can_rank_up && styles.cardReady, pressed && styles.cardPressed]}
+          onPress={() => router.push('/ladder')}>
           <Text style={styles.cardLabel}>Rank</Text>
           <Text style={styles.rankEmoji}>🥋</Text>
-          <Text style={styles.cardBody}>Prospect</Text>
-          <Text style={styles.cardMeta}>Ranks arrive Day 21</Text>
-        </View>
+          <Text style={styles.cardBody}>{rank ? rankLabel(rank.current, rank.tiers) : '—'}</Text>
+          {rank?.can_rank_up ? (
+            <Text style={styles.readyLine}>Ready to rank up!</Text>
+          ) : (
+            <Text style={styles.cardMetaCenter}>
+              {rank?.next
+                ? `${rank.done_count}/${rank.total_count} for ${rankLabel(rank.next, rank.tiers)}`
+                : 'Top of the ladder'}
+            </Text>
+          )}
+          <Text style={styles.ladderLink}>See Ladder ›</Text>
+        </Pressable>
       </View>
 
       {/* Streak + freeze bank */}
@@ -206,6 +226,8 @@ const styles = StyleSheet.create({
     gap: 6,
     alignItems: 'center',
   },
+  cardReady: { borderColor: theme.colors.gold },
+  cardPressed: { opacity: 0.7 },
   wideCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.md,
@@ -220,6 +242,9 @@ const styles = StyleSheet.create({
   rankEmoji: { fontSize: 36 },
   cardBody: { fontSize: theme.font.body, color: theme.colors.text, fontWeight: '600' },
   cardMeta: { fontSize: theme.font.small, color: theme.colors.muted },
+  cardMetaCenter: { fontSize: theme.font.small, color: theme.colors.muted, textAlign: 'center' },
+  readyLine: { fontSize: theme.font.small, color: theme.colors.gold, fontWeight: '700', textAlign: 'center' },
+  ladderLink: { fontSize: theme.font.small, color: theme.colors.red, fontWeight: '700' },
   barTrack: {
     alignSelf: 'stretch',
     height: 10,
