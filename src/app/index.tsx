@@ -1,3 +1,4 @@
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -6,11 +7,15 @@ import { theme } from '@/constants/theme';
 import { supabase } from '../../lib/supabase';
 
 /**
- * Day 18 — Learn tab: the completion pipeline goes generic.
- * Every content type flows through the SAME complete_activity RPC that the
- * Train tab uses — one event stream powers everything (SPEC non-negotiable #5).
- * Real lesson pages / video / scenario player come in the Learn build phase;
- * today "Mark complete" proves the pipe end to end.
+ * Day 22+23 — Learn tab: from inline buttons to real lesson pages.
+ *
+ * Day 18 proved the completion pipe with an inline "Mark complete" button.
+ * Now tapping an item opens the Lesson Page (/lesson/[id]) where the actual
+ * completing happens — behind the D9 scroll-to-the-end gate. Workouts and
+ * drills still point at the Train tab; they never complete from Learn.
+ *
+ * The LV/XP chip reloads on focus so it reflects lessons finished on the
+ * lesson page the moment you come back.
  */
 
 type ContentItem = {
@@ -19,6 +24,7 @@ type ContentItem = {
   type: string;
   pillar: string;
   xp_value: number;
+  duration_min: number | null;
 };
 
 const TYPE_EMOJI: Record<string, string> = {
@@ -33,12 +39,11 @@ const TYPE_EMOJI: Record<string, string> = {
 const isTrainType = (t: string) => t === 'workout' || t === 'drill';
 
 export default function LearnScreen() {
+  const router = useRouter();
   const { session } = useAuth();
   const [items, setItems] = useState<ContentItem[]>([]);
   const [status, setStatus] = useState('Loading…');
   const [stats, setStats] = useState<{ xp: number; level: number } | null>(null);
-  const [results, setResults] = useState<Record<string, string>>({});
-  const [busyId, setBusyId] = useState<string | null>(null);
 
   const loadStats = useCallback(async () => {
     if (!session) return;
@@ -51,7 +56,7 @@ export default function LearnScreen() {
   useEffect(() => {
     supabase
       .from('content_items')
-      .select('id, title, type, pillar, xp_value')
+      .select('id, title, type, pillar, xp_value, duration_min')
       .order('type')
       .then(({ data, error }) => {
         if (error) setStatus(`Error: ${error.message}`);
@@ -61,35 +66,13 @@ export default function LearnScreen() {
           setStatus('');
         }
       });
-    loadStats();
-  }, [loadStats]);
+  }, []);
 
-  const markComplete = async (item: ContentItem) => {
-    setBusyId(item.id);
-    const { data, error } = await supabase.rpc('complete_activity', {
-      p_content_id: item.id,
-      p_event_type: 'completion',
-      p_client_event_id: `learn-${item.id}-${Date.now()}`,
-    });
-    setBusyId(null);
-
-    if (error) {
-      setResults((r) => ({ ...r, [item.id]: `⚠ ${error.message}` }));
-      return;
-    }
-    const d = data as { awarded: number; first_time?: boolean; total_xp?: number; level?: number; reason?: string };
-    if (d.awarded > 0) {
-      setResults((r) => ({
-        ...r,
-        [item.id]: `✓ +${d.awarded} XP${d.first_time ? ' — first time!' : ''}`,
-      }));
-      if (typeof d.total_xp === 'number' && typeof d.level === 'number') {
-        setStats({ xp: d.total_xp, level: d.level });
-      }
-    } else {
-      setResults((r) => ({ ...r, [item.id]: '✓ Already counted today' }));
-    }
-  };
+  useFocusEffect(
+    useCallback(() => {
+      loadStats();
+    }, [loadStats]),
+  );
 
   return (
     <View style={styles.container}>
@@ -109,37 +92,24 @@ export default function LearnScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingBottom: theme.space.xl }}
         renderItem={({ item }) => {
-          const result = results[item.id];
+          const train = isTrainType(item.type);
           return (
-            <View style={styles.card}>
-              <View style={styles.cardTop}>
-                <Text style={styles.emoji}>{TYPE_EMOJI[item.type] ?? '📄'}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.title}>{item.title}</Text>
-                  <Text style={styles.meta}>
-                    {item.pillar} · {item.type.replace('_', ' ')} ·{' '}
-                    <Text style={styles.gold}>+{item.xp_value} XP</Text>
-                  </Text>
-                </View>
-              </View>
-
-              {isTrainType(item.type) ? (
-                <Text style={styles.trainHint}>Complete it in the Train tab 🥊</Text>
-              ) : result ? (
-                <Text style={result.startsWith('⚠') ? styles.resultError : styles.resultOk}>
-                  {result}
+            <Pressable
+              style={({ pressed }) => [styles.card, pressed && !train && styles.cardPressed]}
+              disabled={train}
+              onPress={() => router.push(`/lesson/${item.id}`)}>
+              <Text style={styles.emoji}>{TYPE_EMOJI[item.type] ?? '📄'}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.title}>{item.title}</Text>
+                <Text style={styles.meta}>
+                  {item.pillar} · {item.type.replace('_', ' ')}
+                  {item.duration_min ? ` · ${item.duration_min} min` : ''} ·{' '}
+                  <Text style={styles.gold}>+{item.xp_value} XP</Text>
                 </Text>
-              ) : (
-                <Pressable
-                  style={[styles.completeBtn, busyId === item.id && styles.btnBusy]}
-                  disabled={busyId !== null}
-                  onPress={() => markComplete(item)}>
-                  <Text style={styles.completeText}>
-                    {busyId === item.id ? 'Saving…' : 'Mark complete'}
-                  </Text>
-                </Pressable>
-              )}
-            </View>
+                {train && <Text style={styles.trainHint}>Complete it in the Train tab 🥊</Text>}
+              </View>
+              {!train && <Text style={styles.chevron}>›</Text>}
+            </Pressable>
           );
         }}
       />
@@ -172,28 +142,21 @@ const styles = StyleSheet.create({
   statText: { color: theme.colors.gold, fontSize: theme.font.small, fontWeight: '700' },
   status: { fontSize: theme.font.body, color: theme.colors.muted, marginBottom: theme.space.sm },
   card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.space.sm,
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.md,
     borderWidth: 1,
     borderColor: theme.colors.line,
     padding: theme.space.md,
     marginBottom: theme.space.sm,
-    gap: theme.space.sm,
   },
-  cardTop: { flexDirection: 'row', alignItems: 'center', gap: theme.space.sm },
+  cardPressed: { opacity: 0.75 },
   emoji: { fontSize: 26 },
   title: { fontSize: theme.font.body, fontWeight: '700', color: theme.colors.text },
   meta: { fontSize: theme.font.small, color: theme.colors.muted, marginTop: 2 },
   gold: { color: theme.colors.gold, fontWeight: '700' },
-  trainHint: { fontSize: theme.font.small, color: theme.colors.muted },
-  completeBtn: {
-    backgroundColor: theme.colors.red,
-    borderRadius: theme.radius.lg,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  btnBusy: { opacity: 0.5 },
-  completeText: { color: '#fff', fontSize: theme.font.body, fontWeight: '700' },
-  resultOk: { fontSize: theme.font.body, color: theme.colors.green, fontWeight: '700' },
-  resultError: { fontSize: theme.font.small, color: theme.colors.danger },
+  trainHint: { fontSize: theme.font.small, color: theme.colors.muted, marginTop: 4 },
+  chevron: { fontSize: 24, color: theme.colors.muted, fontWeight: '300' },
 });

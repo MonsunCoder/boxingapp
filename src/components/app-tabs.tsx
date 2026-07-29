@@ -14,6 +14,9 @@ import { theme } from '@/constants/theme';
  * Day 21: `ladder` is a real route but NOT a sixth tab — href: null keeps it
  * out of the tab bar. It is reached one tap deep from the Progress rank card
  * (screen-list decision D7: hub first, ladder behind "See Ladder").
+ *
+ * Day 22+23: `lesson/[id]` joins it — the lesson page opens from the Learn
+ * list and from ladder requirement rows, never from the tab bar.
  */
 
 function TabIcon({ glyph, focused }: { glyph: string; focused: boolean }) {
@@ -72,6 +75,7 @@ export default function AppTabs() {
 
       {/* Reachable by navigation, hidden from the tab bar. */}
       <Tabs.Screen name="ladder" options={{ href: null }} />
+      <Tabs.Screen name="lesson/[id]" options={{ href: null }} />
     </Tabs>
   );
 }

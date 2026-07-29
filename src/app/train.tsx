@@ -1,77 +1,59 @@
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Speech from 'expo-speech';
 
 import { theme } from '@/constants/theme';
 import { supabase } from '../../lib/supabase';
 
 /**
- * Day 17 — Train: guided workout with audio callouts + summary + XP.
- * - Callouts are DATA ({at seconds-remaining, text}) from the content bank's
- *   First Bell script — placeholder content, per project rule.
- * - Voice is text-to-speech as a placeholder; real recorded clips (ideally
- *   the client's voice) arrive in content production. Same data, new mouth.
- * - Finishing calls the complete_activity RPC -> first real xp_events row.
+ * Train tab — now DATA-DRIVEN (Day 22+23 refactor of the Day 17 engine).
+ *
+ * Day 17 hardcoded First Bell into this file to prove the timer + callout
+ * engine. Day 21 made ranks require OTHER workouts, so the shortcut is
+ * retired: every workout/drill now comes from content_items, and its rounds,
+ * rest, and full callout script live in config (standing rule 5 — config over
+ * code). First Bell's script moved to the DB verbatim. Adding a workout is
+ * now a database row, not an app release.
+ *
+ * This also sets up the client-rhythm idea: when his real instructing pacing
+ * is captured, it lands as config edits — same engine, new tempo.
+ *
+ * Voice is still TTS placeholder; real recorded callouts arrive in content
+ * production. Screen flow: LIST -> preview -> work/rest rounds -> summary.
+ * Preview keeps D2 (clean pre-start screen) and D5 (equipment above actions).
  */
-
-// ─── MOCK TIMING + PLACEHOLDER CALLOUTS ─────────────────────────────────────
-// ⚠ Pacing + wording to be re-done from the client's real instructing rhythm.
-const FIRST_BELL = {
-  title: 'First Bell',
-  subtitle: 'Your first workout — stance and jab. No equipment needed.',
-  equipment: [] as string[],
-  actions: [
-    { name: 'Stance + single jab', roundSeconds: 180 },
-    { name: 'Double jab + small steps', roundSeconds: 180 },
-  ],
-  restSeconds: 60,
-  xp: 50,
-};
 
 type Callout = { at: number; text: string }; // `at` = seconds REMAINING in phase
 
-const ROUND_CALLOUTS: Callout[][] = [
-  [
-    { at: 175, text: 'Stance check. Feet shoulder-width, back heel light.' },
-    { at: 160, text: 'Jab.' },
-    { at: 148, text: 'Jab. Snap it back.' },
-    { at: 132, text: 'Jab.' },
-    { at: 118, text: 'Breathe. Shoulders down.' },
-    { at: 105, text: 'Jab. Eyes forward, not at the floor.' },
-    { at: 90, text: 'Halfway. Stance check — did your feet drift?' },
-    { at: 75, text: 'Jab.' },
-    { at: 60, text: 'Jab. Tired is when form matters.' },
-    { at: 40, text: 'Jab.' },
-    { at: 20, text: 'Ten seconds of jabs — your pace, clean reps.' },
-  ],
-  [
-    { at: 175, text: 'Hands up. Round two.' },
-    { at: 162, text: 'Double jab — one-one.' },
-    { at: 146, text: 'One-one. The second one is a surprise, not an echo.' },
-    { at: 130, text: 'Step in, jab. Small step — inches, not leaps.' },
-    { at: 115, text: 'Breathe.' },
-    { at: 100, text: 'One-one.' },
-    { at: 85, text: 'Halfway. Other hand glued to your cheek.' },
-    { at: 70, text: 'Step back, jab. You can hit moving both ways.' },
-    { at: 50, text: 'One-one.' },
-    { at: 30, text: 'Last thirty. Your best double-jabs — make them clean.' },
-  ],
-];
-const REST_CALLOUTS: Callout[] = [
-  { at: 55, text: 'Breathe in through the nose, out slow. That round is done.' },
-  { at: 15, text: 'Next round doubles the jab. Ready.' },
-];
+type WorkoutConfig = {
+  placeholder?: boolean;
+  subtitle?: string;
+  equipment?: string[];
+  actions?: { name: string; roundSeconds: number }[];
+  restSeconds?: number;
+  round_callouts?: Callout[][];
+  rest_callouts?: Callout[];
+};
+
+type WorkoutItem = {
+  id: string;
+  title: string;
+  type: string;
+  xp_value: number;
+  duration_min: number | null;
+  config: WorkoutConfig;
+};
 
 // Dev-only fast run (15s rounds) with a mini callout set.
 const QUICK_TEST = { roundSeconds: 15, restSeconds: 8 };
 const QUICK_ROUND_CALLOUTS: Callout[] = [
-  { at: 12, text: 'Jab.' },
-  { at: 6, text: 'Double jab — one-one.' },
+  { at: 12, text: 'Work.' },
+  { at: 6, text: 'Halfway.' },
 ];
 const QUICK_REST_CALLOUTS: Callout[] = [{ at: 5, text: 'Ready.' }];
-// ────────────────────────────────────────────────────────────────────────────
 
-type Phase = 'preview' | 'work' | 'rest' | 'summary';
+type Phase = 'list' | 'preview' | 'work' | 'rest' | 'summary';
 type RecordResult =
   | { awarded: number; first_time?: boolean; total_xp?: number; level?: number; reason?: string }
   | { error: string };
@@ -87,10 +69,11 @@ function say(text: string) {
 }
 
 export default function TrainScreen() {
-  const workout = FIRST_BELL;
-  const totalRounds = workout.actions.length;
+  const [items, setItems] = useState<WorkoutItem[]>([]);
+  const [listStatus, setListStatus] = useState('Loading…');
+  const [workout, setWorkout] = useState<WorkoutItem | null>(null);
 
-  const [phase, setPhase] = useState<Phase>('preview');
+  const [phase, setPhase] = useState<Phase>('list');
   const [round, setRound] = useState(1);
   const [remainingMs, setRemainingMs] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -100,38 +83,51 @@ export default function TrainScreen() {
   const [recording, setRecording] = useState(false);
 
   const endsAtRef = useRef(0);
-  const phaseRef = useRef<Phase>('preview');
+  const phaseRef = useRef<Phase>('list');
   const roundRef = useRef(1);
   const firedRef = useRef<Set<number>>(new Set());
-  const contentRef = useRef<{ id: string; xp_value: number } | null>(null);
   phaseRef.current = phase;
   roundRef.current = round;
 
-  // Find the real First Bell row in the DB (Day 12 seed) so XP records
-  // against actual content. Content stays in data — placeholder rule.
-  useEffect(() => {
-    supabase
+  const actions = workout?.config?.actions ?? [];
+  const totalRounds = actions.length;
+  const restSeconds = workout?.config?.restSeconds ?? 60;
+
+  // Load every runnable workout/drill. Reload on focus so new content rows
+  // appear without a restart.
+  const loadList = useCallback(async () => {
+    const { data, error } = await supabase
       .from('content_items')
-      .select('id, xp_value')
-      .eq('type', 'workout')
-      .eq('title', 'First Bell')
-      .maybeSingle()
-      .then(({ data }) => {
-        contentRef.current = data ?? null;
-      });
-    return () => Speech.stop();
+      .select('id, title, type, xp_value, duration_min, config')
+      .in('type', ['workout', 'drill'])
+      .order('title');
+    if (error) setListStatus(`Error: ${error.message}`);
+    else if (!data || data.length === 0) setListStatus('No workouts yet.');
+    else {
+      setItems(data as WorkoutItem[]);
+      setListStatus('');
+    }
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      // Only refresh the list when we're actually on it — never mid-round.
+      if (phaseRef.current === 'list') loadList();
+    }, [loadList]),
+  );
+
+  useEffect(() => () => Speech.stop(), []);
 
   const secondsFor = useCallback(
     (p: 'work' | 'rest', r: number) =>
       p === 'work'
         ? quick
           ? QUICK_TEST.roundSeconds
-          : workout.actions[r - 1].roundSeconds
+          : (actions[r - 1]?.roundSeconds ?? 60)
         : quick
           ? QUICK_TEST.restSeconds
-          : workout.restSeconds,
-    [quick, workout],
+          : restSeconds,
+    [quick, actions, restSeconds],
   );
 
   const calloutsFor = useCallback(
@@ -139,11 +135,11 @@ export default function TrainScreen() {
       p === 'work'
         ? quick
           ? QUICK_ROUND_CALLOUTS
-          : (ROUND_CALLOUTS[r - 1] ?? [])
+          : (workout?.config?.round_callouts?.[r - 1] ?? [])
         : quick
           ? QUICK_REST_CALLOUTS
-          : REST_CALLOUTS,
-    [quick],
+          : (workout?.config?.rest_callouts ?? []),
+    [quick, workout],
   );
 
   const startPhase = useCallback(
@@ -156,9 +152,9 @@ export default function TrainScreen() {
       setPhase(p);
       setPaused(false);
       setCallout('');
-      say(p === 'work' ? `Round ${r}. ${workout.actions[r - 1].name}.` : 'Rest.');
+      say(p === 'work' ? `Round ${r}. ${actions[r - 1]?.name ?? ''}.` : 'Rest.');
     },
-    [secondsFor, workout],
+    [secondsFor, actions],
   );
 
   const advance = useCallback(() => {
@@ -200,23 +196,18 @@ export default function TrainScreen() {
 
   // Record the completion once when we reach the summary.
   useEffect(() => {
-    if (phase !== 'summary' || result !== null || recording) return;
+    if (phase !== 'summary' || result !== null || recording || !workout) return;
     (async () => {
       setRecording(true);
-      if (!contentRef.current) {
-        setResult({ error: 'First Bell not found in the database — XP not recorded.' });
-        setRecording(false);
-        return;
-      }
       const { data, error } = await supabase.rpc('complete_activity', {
-        p_content_id: contentRef.current.id,
+        p_content_id: workout.id,
         p_event_type: 'completion',
-        p_client_event_id: `firstbell-${Date.now()}`,
+        p_client_event_id: `train-${workout.id}-${Date.now()}`,
       });
       setResult(error ? { error: error.message } : (data as RecordResult));
       setRecording(false);
     })();
-  }, [phase, result, recording]);
+  }, [phase, result, recording, workout]);
 
   const togglePause = () => {
     if (paused) {
@@ -243,35 +234,85 @@ export default function TrainScreen() {
     ]);
   };
 
-  const backToPreview = () => {
+  const openWorkout = (item: WorkoutItem) => {
+    setWorkout(item);
     setResult(null);
     setPhase('preview');
   };
 
-  // ── PREVIEW ──────────────────────────────────────────────────────────────
+  const backToList = () => {
+    setResult(null);
+    setWorkout(null);
+    setPhase('list');
+    loadList();
+  };
+
+  // ── LIST ─────────────────────────────────────────────────────────────────
+  if (phase === 'list') {
+    return (
+      <View style={styles.listScreen}>
+        <Text style={styles.header}>Train</Text>
+        {listStatus !== '' && <Text style={styles.listStatus}>{listStatus}</Text>}
+        <FlatList
+          data={items}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingBottom: theme.space.xl }}
+          renderItem={({ item }) => {
+            const ready = (item.config?.actions?.length ?? 0) > 0;
+            return (
+              <Pressable
+                style={({ pressed }) => [styles.listCard, pressed && ready && styles.listPressed]}
+                disabled={!ready}
+                onPress={() => openWorkout(item)}>
+                <Text style={styles.listEmoji}>🥊</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.listTitle}>{item.title}</Text>
+                  <Text style={styles.listMeta}>
+                    {ready
+                      ? `${item.config.actions!.length} rounds${item.duration_min ? ` · ~${item.duration_min} min` : ''} · `
+                      : 'Script coming soon · '}
+                    <Text style={styles.gold}>+{item.xp_value} XP</Text>
+                  </Text>
+                </View>
+                {ready && <Text style={styles.chevron}>›</Text>}
+              </Pressable>
+            );
+          }}
+        />
+      </View>
+    );
+  }
+
+  if (!workout) return null; // unreachable: every phase past 'list' has a workout
+
+  // ── PREVIEW (D2 clean pre-start; D5 equipment above actions) ─────────────
   if (phase === 'preview') {
+    const equipment = workout.config?.equipment ?? [];
     return (
       <View style={styles.screen}>
+        <Pressable onPress={backToList} hitSlop={12} style={styles.backWrap}>
+          <Text style={styles.back}>‹ All workouts</Text>
+        </Pressable>
         <Text style={styles.title}>{workout.title}</Text>
-        <Text style={styles.subtitle}>{workout.subtitle}</Text>
+        <Text style={styles.subtitle}>{workout.config?.subtitle ?? ''}</Text>
 
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Equipment</Text>
           <Text style={styles.cardBody}>
-            {workout.equipment.length === 0 ? 'None — just you' : workout.equipment.join(' · ')}
+            {equipment.length === 0 ? 'None — just you' : equipment.join(' · ')}
           </Text>
         </View>
 
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Rounds</Text>
-          {workout.actions.map((a, i) => (
+          {actions.map((a, i) => (
             <Text key={a.name} style={styles.cardBody}>
               {i + 1}. {a.name} — {Math.round(a.roundSeconds / 60)} min
             </Text>
           ))}
           <Text style={styles.cardMeta}>
-            Rest {workout.restSeconds}s · voice callouts on ·{' '}
-            <Text style={styles.gold}>+{workout.xp} XP</Text>
+            Rest {restSeconds}s · voice callouts on ·{' '}
+            <Text style={styles.gold}>+{workout.xp_value} XP</Text>
           </Text>
         </View>
 
@@ -288,13 +329,13 @@ export default function TrainScreen() {
 
   // ── SUMMARY (records the completion -> xp_events) ────────────────────────
   if (phase === 'summary') {
+    const workMs = actions.reduce((sum, a) => sum + (quick ? QUICK_TEST.roundSeconds : a.roundSeconds), 0) * 1000;
     return (
       <View style={styles.screen}>
         <Text style={styles.bigEmoji}>🔔</Text>
         <Text style={styles.title}>That’s the bell.</Text>
         <Text style={styles.subtitle}>
-          {totalRounds} rounds · {fmt(totalRounds * secondsFor('work', 1) * 1000)} of work. You
-          showed up — that’s the whole job.
+          {totalRounds} rounds · {fmt(workMs)} of work. You showed up — that’s the whole job.
         </Text>
 
         {recording && <Text style={styles.cardMeta}>Saving your work…</Text>}
@@ -315,7 +356,7 @@ export default function TrainScreen() {
           </View>
         )}
 
-        <Pressable style={styles.startBtn} onPress={backToPreview}>
+        <Pressable style={styles.startBtn} onPress={backToList}>
           <Text style={styles.startText}>Done</Text>
         </Pressable>
       </View>
@@ -324,7 +365,7 @@ export default function TrainScreen() {
 
   // ── ACTIVE: WORK (red) / REST (green) ────────────────────────────────────
   const isWork = phase === 'work';
-  const nextAction = workout.actions[round];
+  const nextAction = actions[round];
 
   return (
     <View style={[styles.screen, isWork ? styles.workBg : styles.restBg]}>
@@ -334,7 +375,9 @@ export default function TrainScreen() {
         {fmt(remainingMs)}
       </Text>
 
-      <Text style={styles.calloutText}>{callout !== '' ? callout : isWork ? workout.actions[round - 1].name : 'Breathe.'}</Text>
+      <Text style={styles.calloutText}>
+        {callout !== '' ? callout : isWork ? (actions[round - 1]?.name ?? '') : 'Breathe.'}
+      </Text>
 
       {!isWork && nextAction && (
         <Text style={styles.nextHint}>Next — Round {round + 1}: {nextAction.name}</Text>
@@ -357,6 +400,36 @@ export default function TrainScreen() {
 }
 
 const styles = StyleSheet.create({
+  listScreen: {
+    flex: 1,
+    backgroundColor: theme.colors.bg,
+    paddingTop: 72,
+    paddingHorizontal: theme.space.md,
+  },
+  header: {
+    fontSize: theme.font.title,
+    fontWeight: '800',
+    color: theme.colors.text,
+    marginBottom: theme.space.md,
+  },
+  listStatus: { fontSize: theme.font.body, color: theme.colors.muted, marginBottom: theme.space.sm },
+  listCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.space.sm,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    padding: theme.space.md,
+    marginBottom: theme.space.sm,
+  },
+  listPressed: { opacity: 0.75 },
+  listEmoji: { fontSize: 26 },
+  listTitle: { fontSize: theme.font.body, fontWeight: '700', color: theme.colors.text },
+  listMeta: { fontSize: theme.font.small, color: theme.colors.muted, marginTop: 2 },
+  chevron: { fontSize: 24, color: theme.colors.muted, fontWeight: '300' },
+
   screen: {
     flex: 1,
     backgroundColor: theme.colors.bg,
@@ -365,6 +438,8 @@ const styles = StyleSheet.create({
     padding: theme.space.lg,
     gap: theme.space.md,
   },
+  backWrap: { alignSelf: 'flex-start' },
+  back: { fontSize: theme.font.body, color: theme.colors.muted },
   workBg: { backgroundColor: '#2A0E13' },
   restBg: { backgroundColor: '#0F2418' },
   title: { fontSize: theme.font.title, fontWeight: '800', color: theme.colors.text, textAlign: 'center' },
