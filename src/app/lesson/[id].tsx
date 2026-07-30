@@ -84,6 +84,15 @@ export default function LessonScreen() {
 
   useEffect(() => {
     if (!id) return;
+    // BUG FIX (Day 24): this screen is registered once inside the tab
+    // navigator, so navigating to a DIFFERENT lesson reuses the same
+    // component instance. Without this reset, lesson B wears lesson A's
+    // "✓ completed" state — which once made an untouched ethics LESSON look
+    // finished while the server (correctly) kept refusing the rank-up.
+    setItem(null);
+    setResult('');
+    setReachedEnd(false);
+    setError('');
     supabase
       .from('content_items')
       .select('id, title, type, pillar, xp_value, duration_min, config')

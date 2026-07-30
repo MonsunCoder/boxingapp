@@ -17,6 +17,8 @@ import { theme } from '@/constants/theme';
  *
  * Day 22+23: `lesson/[id]` joins it — the lesson page opens from the Learn
  * list and from ladder requirement rows, never from the tab bar.
+ *
+ * Day 24: `pathway/[id]` — the Journey view, opened from Learn's pathway cards.
  */
 
 function TabIcon({ glyph, focused }: { glyph: string; focused: boolean }) {
@@ -76,6 +78,7 @@ export default function AppTabs() {
       {/* Reachable by navigation, hidden from the tab bar. */}
       <Tabs.Screen name="ladder" options={{ href: null }} />
       <Tabs.Screen name="lesson/[id]" options={{ href: null }} />
+      <Tabs.Screen name="pathway/[id]" options={{ href: null }} />
     </Tabs>
   );
 }

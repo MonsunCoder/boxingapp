@@ -3,19 +3,23 @@ import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/components/auth/AuthProvider';
+import { PathwayInfo, TRACK_SECTIONS } from '@/constants/pathways';
 import { theme } from '@/constants/theme';
 import { supabase } from '../../lib/supabase';
 
 /**
- * Day 22+23 — Learn tab: from inline buttons to real lesson pages.
+ * Day 24 — Learn tab, restructured per Jigar's direction: pathways come
+ * CATEGORIZED — The Journey (required) first, then Belt pathways, then
+ * Optional — each card carrying its difficulty. The flat all-content list
+ * stays below as a browse section for now.
  *
- * Day 18 proved the completion pipe with an inline "Mark complete" button.
- * Now tapping an item opens the Lesson Page (/lesson/[id]) where the actual
- * completing happens — behind the D9 scroll-to-the-end gate. Workouts and
- * drills still point at the Train tab; they never complete from Learn.
+ * Categories and difficulty are DATA (pathways.track / pathways.difficulty),
+ * so re-shelving a pathway is a row edit. Cards open /pathway/[id] — the
+ * spider-web Journey view. Tapping a flat-list item still opens its lesson
+ * page directly.
  *
- * The LV/XP chip reloads on focus so it reflects lessons finished on the
- * lesson page the moment you come back.
+ * Pathways + the LV/XP chip reload on focus so both reflect work finished
+ * elsewhere the moment you come back.
  */
 
 type ContentItem = {
@@ -42,6 +46,7 @@ export default function LearnScreen() {
   const router = useRouter();
   const { session } = useAuth();
   const [items, setItems] = useState<ContentItem[]>([]);
+  const [pathways, setPathways] = useState<PathwayInfo[]>([]);
   const [status, setStatus] = useState('Loading…');
   const [stats, setStats] = useState<{ xp: number; level: number } | null>(null);
 
@@ -68,10 +73,16 @@ export default function LearnScreen() {
       });
   }, []);
 
+  const loadPathways = useCallback(async () => {
+    const { data } = await supabase.rpc('pathway_map');
+    setPathways((data as PathwayInfo[]) ?? []);
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       loadStats();
-    }, [loadStats]),
+      loadPathways();
+    }, [loadStats, loadPathways]),
   );
 
   return (
@@ -91,6 +102,47 @@ export default function LearnScreen() {
         data={items}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingBottom: theme.space.xl }}
+        ListHeaderComponent={
+          <>
+            {TRACK_SECTIONS.map((section) => {
+              const inSection = pathways.filter((p) => p.track === section.track);
+              if (inSection.length === 0) return null;
+              return (
+                <View key={section.track}>
+                  <Text style={styles.sectionTitle}>{section.title}</Text>
+                  <Text style={styles.sectionBlurb}>{section.blurb}</Text>
+                  {inSection.map((p) => {
+                    const finished = p.done_count === p.total_count;
+                    return (
+                      <Pressable
+                        key={p.id}
+                        style={({ pressed }) => [
+                          styles.pathCard,
+                          section.track !== 'journey' && styles.pathCardQuiet,
+                          finished && styles.pathDone,
+                          pressed && styles.cardPressed,
+                        ]}
+                        onPress={() => router.push(`/pathway/${p.id}`)}>
+                        <Text style={styles.pathEmoji}>{finished ? '🏁' : '🗺️'}</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.title}>{p.title}</Text>
+                          {p.description ? (
+                            <Text style={styles.meta} numberOfLines={2}>{p.description}</Text>
+                          ) : null}
+                          <Text style={styles.pathProgress}>
+                            {p.difficulty} · {finished ? 'Complete' : `${p.done_count}/${p.total_count} steps`}
+                          </Text>
+                        </View>
+                        <Text style={styles.chevron}>›</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              );
+            })}
+            {items.length > 0 && <Text style={styles.sectionTitle}>All content</Text>}
+          </>
+        }
         renderItem={({ item }) => {
           const train = isTrainType(item.type);
           return (
@@ -153,6 +205,33 @@ const styles = StyleSheet.create({
     marginBottom: theme.space.sm,
   },
   cardPressed: { opacity: 0.75 },
+  pathCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.space.sm,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.gold,
+    padding: theme.space.md,
+    marginBottom: theme.space.sm,
+  },
+  pathCardQuiet: { borderColor: theme.colors.line },
+  pathDone: { borderColor: theme.colors.green },
+  pathEmoji: { fontSize: 26 },
+  pathProgress: { fontSize: theme.font.small, color: theme.colors.gold, fontWeight: '700', marginTop: 4 },
+  sectionTitle: {
+    fontSize: theme.font.header,
+    fontWeight: '700',
+    color: theme.colors.text,
+    marginTop: theme.space.sm,
+    marginBottom: 4,
+  },
+  sectionBlurb: {
+    fontSize: theme.font.small,
+    color: theme.colors.muted,
+    marginBottom: theme.space.sm,
+  },
   emoji: { fontSize: 26 },
   title: { fontSize: theme.font.body, fontWeight: '700', color: theme.colors.text },
   meta: { fontSize: theme.font.small, color: theme.colors.muted, marginTop: 2 },
