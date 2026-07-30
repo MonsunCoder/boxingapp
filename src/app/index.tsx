@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Pressable, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useAuth } from '@/components/auth/AuthProvider';
 import { PathwayInfo, TRACK_SECTIONS } from '@/constants/pathways';
@@ -42,6 +42,18 @@ const TYPE_EMOJI: Record<string, string> = {
 
 const isTrainType = (t: string) => t === 'workout' || t === 'drill';
 
+// The four pillars (locked in the DB check constraint since Day 3).
+// Order here = display order in the Library; a pillar with no content
+// simply doesn't render yet.
+const PILLARS: { key: string; label: string }[] = [
+  { key: 'boxing', label: '🥊 Boxing' },
+  { key: 'conflict', label: '🕊️ Words First' },
+  { key: 'nutrition', label: '🍎 Nutrition' },
+  { key: 'fitness', label: '💪 Fitness' },
+];
+const pillarLabel = (p: string) =>
+  PILLARS.find((x) => x.key === p)?.label ?? p.charAt(0).toUpperCase() + p.slice(1);
+
 export default function LearnScreen() {
   const router = useRouter();
   const { session } = useAuth();
@@ -49,6 +61,7 @@ export default function LearnScreen() {
   const [pathways, setPathways] = useState<PathwayInfo[]>([]);
   const [status, setStatus] = useState('Loading…');
   const [stats, setStats] = useState<{ xp: number; level: number } | null>(null);
+  const [query, setQuery] = useState('');
 
   const loadStats = useCallback(async () => {
     if (!session) return;
@@ -85,6 +98,22 @@ export default function LearnScreen() {
     }, [loadStats, loadPathways]),
   );
 
+  // The Library: title search + grouped by the four pillars (Day 25).
+  // Grouping is data-driven — a pillar with no content just doesn't appear.
+  const librarySections = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q === '' ? items : items.filter((i) => i.title.toLowerCase().includes(q));
+    const known = PILLARS.map((p) => ({
+      title: p.label,
+      data: filtered.filter((i) => i.pillar === p.key),
+    }));
+    const other = {
+      title: 'Other',
+      data: filtered.filter((i) => !PILLARS.some((p) => p.key === i.pillar)),
+    };
+    return [...known, other].filter((s) => s.data.length > 0);
+  }, [items, query]);
+
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
@@ -98,13 +127,24 @@ export default function LearnScreen() {
 
       {status !== '' && <Text style={styles.status}>{status}</Text>}
 
-      <FlatList
-        data={items}
+      <SectionList
+        sections={librarySections}
         keyExtractor={(item) => item.id}
+        stickySectionHeadersEnabled={false}
         contentContainerStyle={{ paddingBottom: theme.space.xl }}
+        renderSectionHeader={({ section }) => (
+          <Text style={styles.pillarTitle}>{section.title}</Text>
+        )}
+        ListEmptyComponent={
+          query.trim() !== '' ? (
+            <Text style={styles.status}>Nothing matches “{query.trim()}”.</Text>
+          ) : null
+        }
         ListHeaderComponent={
           <>
-            {TRACK_SECTIONS.map((section) => {
+            {/* Searching hides the pathway shelves to focus the results. */}
+            {query.trim() === '' &&
+              TRACK_SECTIONS.map((section) => {
               const inSection = pathways.filter((p) => p.track === section.track);
               if (inSection.length === 0) return null;
               return (
@@ -137,10 +177,20 @@ export default function LearnScreen() {
                       </Pressable>
                     );
                   })}
-                </View>
-              );
-            })}
-            {items.length > 0 && <Text style={styles.sectionTitle}>All content</Text>}
+                  </View>
+                );
+              })}
+            <Text style={styles.sectionTitle}>Library</Text>
+            <TextInput
+              style={styles.searchBox}
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search lessons, workouts, articles…"
+              placeholderTextColor={theme.colors.muted}
+              autoCorrect={false}
+              returnKeyType="search"
+              clearButtonMode="while-editing"
+            />
           </>
         }
         renderItem={({ item }) => {
@@ -231,6 +281,26 @@ const styles = StyleSheet.create({
     fontSize: theme.font.small,
     color: theme.colors.muted,
     marginBottom: theme.space.sm,
+  },
+  searchBox: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.line,
+    borderWidth: 1,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: theme.space.md,
+    paddingVertical: 10,
+    fontSize: theme.font.body,
+    color: theme.colors.text,
+    marginBottom: theme.space.sm,
+  },
+  pillarTitle: {
+    fontSize: theme.font.body,
+    fontWeight: '800',
+    color: theme.colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: theme.space.sm,
+    marginBottom: theme.space.xs,
   },
   emoji: { fontSize: 26 },
   title: { fontSize: theme.font.body, fontWeight: '700', color: theme.colors.text },

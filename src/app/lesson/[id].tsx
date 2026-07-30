@@ -3,6 +3,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
@@ -48,6 +49,7 @@ type LessonItem = {
   config: {
     placeholder?: boolean;
     video_url?: string;
+    image_url?: string; // optional hero image (articles mostly) — Day 25
     description?: string;
     key_steps?: string[];
   };
@@ -189,6 +191,10 @@ export default function LessonScreen() {
           <VideoView player={player} style={styles.video} contentFit="contain" allowsFullscreen />
         ) : null}
 
+        {!videoUrl && item.config?.image_url ? (
+          <Image source={{ uri: item.config.image_url }} style={styles.hero} resizeMode="cover" />
+        ) : null}
+
         {item.config?.description ? (
           <Text style={styles.body}>{item.config.description}</Text>
         ) : (
@@ -293,6 +299,13 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 16 / 9,
     backgroundColor: '#000',
+    borderRadius: theme.radius.md,
+    marginTop: theme.space.xs,
+  },
+  hero: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.md,
     marginTop: theme.space.xs,
   },
