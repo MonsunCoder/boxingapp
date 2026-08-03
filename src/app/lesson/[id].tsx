@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 
+import ScenarioPlayer, { Scenario } from '@/components/ScenarioPlayer';
 import { theme } from '@/constants/theme';
 import { supabase } from '../../../lib/supabase';
 
@@ -30,10 +31,10 @@ import { supabase } from '../../../lib/supabase';
  * them. This is a client-side trust mechanism by design; the uncheatable gates
  * (rank-ups, XP dedupe) stay server-side.
  *
- * TEMPORARY (flagged for Phase 3): ethics scenarios complete through this same
- * button for now. Their real form is the interactive choose-your-path scenario
- * with a TRUTHFUL reflection at the end — when that flow is built, ethics
- * items stop completing here (D9 exempts them from the button shortcut).
+ * Day 26: ethics items that carry config.scenario hand this screen over to
+ * the ScenarioPlayer — the interactive choose-your-path flow with a TRUTHFUL
+ * reflection. Per D9, those items no longer complete through the button here.
+ * Ethics items WITHOUT a scenario yet (transitional) still use this page.
  *
  * Video is a public sample clip wired through config.video_url — placeholder
  * machinery only. Real hosting (Mux / Supabase Storage) comes with real footage.
@@ -52,6 +53,7 @@ type LessonItem = {
     image_url?: string; // optional hero image (articles mostly) — Day 25
     description?: string;
     key_steps?: string[];
+    scenario?: Scenario; // interactive branching LESSON — Day 26
   };
 };
 
@@ -154,6 +156,12 @@ export default function LessonScreen() {
         <ActivityIndicator size="large" color={theme.colors.gold} />
       </View>
     );
+  }
+
+  // Interactive LESSON? The scenario player takes the whole screen (D9: the
+  // scenario flow IS the completion path — no reading-page shortcut).
+  if (isEthicsType(item.type) && item.config?.scenario) {
+    return <ScenarioPlayer item={item} scenario={item.config.scenario} />;
   }
 
   const ethics = isEthicsType(item.type);
