@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 
+import FilmPlayer, { Film } from '@/components/FilmPlayer';
 import ScenarioPlayer, { Scenario } from '@/components/ScenarioPlayer';
 import { theme } from '@/constants/theme';
 import { supabase } from '../../../lib/supabase';
@@ -54,6 +55,7 @@ type LessonItem = {
     description?: string;
     key_steps?: string[];
     scenario?: Scenario; // interactive branching LESSON — Day 26
+    film?: Film; // short film + reflection — Day 27
   };
 };
 
@@ -71,6 +73,7 @@ export default function LessonScreen() {
   const [reachedEnd, setReachedEnd] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState('');
+  const [videoDead, setVideoDead] = useState(false);
 
   // The ScrollView's viewport height, for the "fits on one screen" check.
   const viewportH = useRef(0);
@@ -83,8 +86,25 @@ export default function LessonScreen() {
   // useVideoPlayer captures its initial source and does NOT react when it
   // changes — and the item loads async — so swap the source in explicitly.
   useEffect(() => {
-    if (videoUrl) player.replace(videoUrl);
+    setVideoDead(false);
+    // replaceAsync: the sync version loads on the iOS main thread (UI freeze
+    // + deprecation warning). Errors surface through the dead-clip watcher.
+    if (videoUrl) player.replaceAsync(videoUrl).catch(() => setVideoDead(true));
   }, [videoUrl, player]);
+
+  // If the clip errors or never loads, drop the player instead of showing a
+  // dead black box. The lesson never depended on it — key steps carry the
+  // teaching for low-data kids (D9), so this is cosmetic honesty.
+  useEffect(() => {
+    if (!videoUrl || videoDead) return;
+    const startedAt = Date.now();
+    const idInterval = setInterval(() => {
+      if (player.status === 'error') setVideoDead(true);
+      else if (player.duration === 0 && Date.now() - startedAt > 12000) setVideoDead(true);
+      else if (player.duration > 0) clearInterval(idInterval);
+    }, 500);
+    return () => clearInterval(idInterval);
+  }, [videoUrl, videoDead, player]);
 
   useEffect(() => {
     if (!id) return;
@@ -164,6 +184,11 @@ export default function LessonScreen() {
     return <ScenarioPlayer item={item} scenario={item.config.scenario} />;
   }
 
+  // Short film? Watch → reflection → complete (Day 27).
+  if (item.type === 'short_film' && item.config?.film) {
+    return <FilmPlayer item={item} film={item.config.film} />;
+  }
+
   const ethics = isEthicsType(item.type);
   const steps = item.config?.key_steps ?? [];
 
@@ -195,8 +220,13 @@ export default function LessonScreen() {
           <Text style={styles.gold}>+{item.xp_value} XP</Text>
         </Text>
 
-        {videoUrl ? (
+        {videoUrl && !videoDead ? (
           <VideoView player={player} style={styles.video} contentFit="contain" allowsFullscreen />
+        ) : null}
+        {videoUrl && videoDead ? (
+          <Text style={styles.videoDeadNote}>
+            🎬 The clip isn't loading right now — the key steps below teach the same thing.
+          </Text>
         ) : null}
 
         {!videoUrl && item.config?.image_url ? (
@@ -315,6 +345,16 @@ const styles = StyleSheet.create({
     aspectRatio: 16 / 9,
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.md,
+    marginTop: theme.space.xs,
+  },
+  videoDeadNote: {
+    fontSize: theme.font.small,
+    color: theme.colors.muted,
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.line,
+    borderWidth: 1,
+    borderRadius: theme.radius.md,
+    padding: theme.space.md,
     marginTop: theme.space.xs,
   },
 
