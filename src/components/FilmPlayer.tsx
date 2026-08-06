@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -38,6 +38,12 @@ const LOAD_TIMEOUT_MS = 12000; // placeholder resilience: video failing must nev
 
 export default function FilmPlayer({ item, film }: Props) {
   const router = useRouter();
+  // Rendered inside /lesson/[id]; returnTo sends "Done"/back to the opener.
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
+  const goBack = () => {
+    if (typeof returnTo === 'string' && returnTo.startsWith('/')) router.replace(returnTo as never);
+    else router.back();
+  };
   const [watched, setWatched] = useState(false);
   const [videoTrouble, setVideoTrouble] = useState('');
   const [phase, setPhase] = useState<'watching' | 'reflection' | 'done'>('watching');
@@ -95,7 +101,7 @@ export default function FilmPlayer({ item, film }: Props) {
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
+        <Pressable onPress={goBack} hitSlop={12}>
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
 
@@ -149,7 +155,7 @@ export default function FilmPlayer({ item, film }: Props) {
                 <Text style={result.startsWith('⚠') ? styles.resultError : styles.resultOk}>
                   {result}
                 </Text>
-                <Pressable style={styles.completeBtn} onPress={() => router.back()}>
+                <Pressable style={styles.completeBtn} onPress={goBack}>
                   <Text style={styles.completeText}>Done</Text>
                 </Pressable>
               </>

@@ -156,8 +156,8 @@ export default function PathwayScreen() {
   const nodeState = (n: PathwayNode) => (n.done ? 'done' : n.available ? 'open' : 'locked');
 
   const actOn = (node: PathwayNode) => {
-    if (isTrainType(node.type)) router.push('/train');
-    else router.push(`/lesson/${node.content_id}`);
+    if (isTrainType(node.type)) router.push(`/train?open=${node.content_id}`);
+    else router.push(`/lesson/${node.content_id}?returnTo=/pathway/${pathway!.id}`);
   };
 
   return (

@@ -62,11 +62,22 @@ type LessonItem = {
 const isTrainType = (t: string) => t === 'workout' || t === 'drill';
 const isEthicsType = (t: string) => t === 'ethics_scenario' || t === 'short_film';
 
-const SCROLL_SLACK = 32; // px of grace so "the bottom" doesn't require a pixel-perfect fling
+// Grace distance for the D9 gate. Was 32px — Jigar's playthrough found that on
+// a real phone the bottom could be visibly reached while still ~40-60px short
+// (bounce, insets, fractional layouts), forcing a frustrating extra nudge.
+const SCROLL_SLACK = 96;
 
 export default function LessonScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, returnTo } = useLocalSearchParams<{ id: string; returnTo?: string }>();
+
+  // Where "back"/"Done" should land. Tab-nested screens don't keep a real
+  // back-stack across tabs, so a lesson opened from the ladder must be told
+  // to return there (Day 29 playthrough finding). Internal paths only.
+  const goBack = () => {
+    if (typeof returnTo === 'string' && returnTo.startsWith('/')) router.replace(returnTo as never);
+    else router.back();
+  };
 
   const [item, setItem] = useState<LessonItem | null>(null);
   const [error, setError] = useState('');
@@ -163,7 +174,7 @@ export default function LessonScreen() {
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>{error}</Text>
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+        <Pressable style={styles.backBtn} onPress={goBack}>
           <Text style={styles.backBtnText}>Go back</Text>
         </Pressable>
       </View>
@@ -203,7 +214,7 @@ export default function LessonScreen() {
         onLayout={(e) => {
           viewportH.current = e.nativeEvent.layout.height;
         }}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
+        <Pressable onPress={goBack} hitSlop={12}>
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
 
@@ -270,7 +281,7 @@ export default function LessonScreen() {
             <Text style={result.startsWith('⚠') ? styles.resultError : styles.resultOk}>
               {result}
             </Text>
-            <Pressable style={styles.backBtn} onPress={() => router.back()}>
+            <Pressable style={styles.backBtn} onPress={goBack}>
               <Text style={styles.backBtnText}>Done</Text>
             </Pressable>
           </View>

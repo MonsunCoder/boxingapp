@@ -1,6 +1,6 @@
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 import * as Speech from 'expo-speech';
 
 import { theme } from '@/constants/theme';
@@ -34,6 +34,7 @@ type WorkoutConfig = {
   restSeconds?: number;
   round_callouts?: Callout[][];
   rest_callouts?: Callout[];
+  repeat_recommended?: boolean; // warmups/practice drills that stay in rotation (Day 29)
 };
 
 type WorkoutItem = {
@@ -69,7 +70,13 @@ function say(text: string) {
 }
 
 export default function TrainScreen() {
+  // Deep link: /train?open=<content_id> lands straight on that workout's
+  // preview (used by onboarding, the ladder, and pathway webs — Day 29).
+  const { open } = useLocalSearchParams<{ open?: string }>();
+  const handledOpenRef = useRef<string | null>(null);
+
   const [items, setItems] = useState<WorkoutItem[]>([]);
+  const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
   const [listStatus, setListStatus] = useState('Loading…');
   const [workout, setWorkout] = useState<WorkoutItem | null>(null);
 
@@ -96,11 +103,15 @@ export default function TrainScreen() {
   // Load every runnable workout/drill. Reload on focus so new content rows
   // appear without a restart.
   const loadList = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('content_items')
-      .select('id, title, type, xp_value, duration_min, config')
-      .in('type', ['workout', 'drill'])
-      .order('title');
+    const [{ data, error }, { data: doneRows }] = await Promise.all([
+      supabase
+        .from('content_items')
+        .select('id, title, type, xp_value, duration_min, config')
+        .in('type', ['workout', 'drill'])
+        .order('title'),
+      supabase.from('xp_events').select('content_id').eq('event_type', 'completion'),
+    ]);
+    setDoneIds(new Set((doneRows ?? []).map((r) => r.content_id as string)));
     if (error) setListStatus(`Error: ${error.message}`);
     else if (!data || data.length === 0) setListStatus('No workouts yet.');
     else {
@@ -117,6 +128,19 @@ export default function TrainScreen() {
   );
 
   useEffect(() => () => Speech.stop(), []);
+
+  // Honor the deep link once per distinct `open` value, only from the list.
+  useEffect(() => {
+    if (!open || typeof open !== 'string' || open === handledOpenRef.current) return;
+    if (phaseRef.current !== 'list' || items.length === 0) return;
+    const target = items.find((i) => i.id === open);
+    if (target && (target.config?.actions?.length ?? 0) > 0) {
+      handledOpenRef.current = open;
+      setWorkout(target);
+      setResult(null);
+      setPhase('preview');
+    }
+  }, [open, items]);
 
   const secondsFor = useCallback(
     (p: 'work' | 'rest', r: number) =>
@@ -247,16 +271,31 @@ export default function TrainScreen() {
     loadList();
   };
 
-  // ── LIST ─────────────────────────────────────────────────────────────────
+  // ── LIST (Day 29: sectioned — Not Completed / Repeats Recommended / Completed) ──
   if (phase === 'list') {
+    const done = (i: WorkoutItem) => doneIds.has(i.id);
+    const repeat = (i: WorkoutItem) => i.config?.repeat_recommended === true;
+    const sections = [
+      { title: 'Not Completed', hint: 'Fresh work. This is where belts come from.', data: items.filter((i) => !done(i)) },
+      { title: 'Repeats Recommended', hint: 'Warmups and practice — keep these in rotation.', data: items.filter((i) => done(i) && repeat(i)) },
+      { title: 'Completed', hint: 'In the bank. Redo any of them whenever you like.', data: items.filter((i) => done(i) && !repeat(i)) },
+    ].filter((s) => s.data.length > 0);
+
     return (
       <View style={styles.listScreen}>
         <Text style={styles.header}>Train</Text>
         {listStatus !== '' && <Text style={styles.listStatus}>{listStatus}</Text>}
-        <FlatList
-          data={items}
+        <SectionList
+          sections={sections}
           keyExtractor={(item) => item.id}
+          stickySectionHeadersEnabled={false}
           contentContainerStyle={{ paddingBottom: theme.space.xl }}
+          renderSectionHeader={({ section }) => (
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+              <Text style={styles.sectionHint}>{section.hint}</Text>
+            </View>
+          )}
           renderItem={({ item }) => {
             const ready = (item.config?.actions?.length ?? 0) > 0;
             return (
@@ -264,7 +303,7 @@ export default function TrainScreen() {
                 style={({ pressed }) => [styles.listCard, pressed && ready && styles.listPressed]}
                 disabled={!ready}
                 onPress={() => openWorkout(item)}>
-                <Text style={styles.listEmoji}>🥊</Text>
+                <Text style={styles.listEmoji}>{done(item) ? '✅' : '🥊'}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.listTitle}>{item.title}</Text>
                   <Text style={styles.listMeta}>
@@ -272,6 +311,7 @@ export default function TrainScreen() {
                       ? `${item.config.actions!.length} rounds${item.duration_min ? ` · ~${item.duration_min} min` : ''} · `
                       : 'Script coming soon · '}
                     <Text style={styles.gold}>+{item.xp_value} XP</Text>
+                    {done(item) && repeat(item) ? '  ·  🔁 keep practicing' : ''}
                   </Text>
                 </View>
                 {ready && <Text style={styles.chevron}>›</Text>}
@@ -413,6 +453,15 @@ const styles = StyleSheet.create({
     marginBottom: theme.space.md,
   },
   listStatus: { fontSize: theme.font.body, color: theme.colors.muted, marginBottom: theme.space.sm },
+  sectionHead: { marginTop: theme.space.sm, marginBottom: theme.space.xs },
+  sectionTitle: {
+    fontSize: theme.font.small,
+    fontWeight: '800',
+    color: theme.colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  sectionHint: { fontSize: theme.font.small, color: theme.colors.muted, opacity: 0.7, marginTop: 2 },
   listCard: {
     flexDirection: 'row',
     alignItems: 'center',

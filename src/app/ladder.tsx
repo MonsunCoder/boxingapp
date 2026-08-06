@@ -192,14 +192,19 @@ export default function LadderScreen() {
                 return (
                   <Pressable
                     key={item.content_id}
-                    style={({ pressed }) => [styles.reqRow, pressed && !train && styles.reqPressed]}
-                    disabled={train}
-                    onPress={() => router.push(`/lesson/${item.content_id}`)}>
+                    style={({ pressed }) => [styles.reqRow, pressed && styles.reqPressed]}
+                    onPress={() =>
+                      router.push(
+                        train
+                          ? `/train?open=${item.content_id}` // deep-link straight to the workout preview
+                          : `/lesson/${item.content_id}?returnTo=/ladder`, // finishing brings you back HERE
+                      )
+                    }>
                     <Text style={styles.reqTick}>{item.done ? '✅' : '⬜'}</Text>
                     <Text style={[styles.reqTitle, item.done && styles.reqDone]} numberOfLines={1}>
                       {TYPE_EMOJI[item.type] ?? '📄'} {item.title}
                     </Text>
-                    <Text style={styles.reqGo}>{train ? 'Train tab' : '›'}</Text>
+                    <Text style={styles.reqGo}>›</Text>
                   </Pressable>
                 );
               })}
@@ -221,7 +226,7 @@ export default function LadderScreen() {
           {ethicsPrompt && (
             <Pressable
               style={({ pressed }) => [styles.ethicsPromptCard, pressed && styles.reqPressed]}
-              onPress={() => router.push(`/lesson/${ethicsPrompt.content_id}`)}>
+              onPress={() => router.push(`/lesson/${ethicsPrompt.content_id}?returnTo=/ladder`)}>
               <Text style={styles.ethicsPromptEmoji}>🕊️</Text>
               <View style={{ flex: 1 }}>
                 <Text style={styles.ethicsPromptTitle}>{ethicsPrompt.title}</Text>

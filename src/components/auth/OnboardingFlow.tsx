@@ -1,6 +1,8 @@
-import { theme } from '@/constants/theme';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { theme } from '@/constants/theme';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from './AuthProvider';
 
@@ -8,9 +10,13 @@ import { useAuth } from './AuthProvider';
  * Day 14 — first-run onboarding (SPEC onboarding flow, steps 4–7 / 04b D6).
  * Sign-up, age gate, and parental consent are handled upstream by AuthGate.
  * This is the post-consent flow, one decision per screen, strict order:
- *   goals -> "Deal." (words-first opt-in) -> Initiation Film -> Ring the First Bell
- * Answers are saved to the profile; the final step marks onboarding complete,
- * which drops the kid into the app (their First Bell workout is Day 16–17).
+ *   goals -> "Deal." (words-first opt-in) -> Initiation Film -> First Bell choice
+ *
+ * Day 29 revision (Jigar's playthrough): the last step is a CHOICE, not a
+ * shove. "Ring the First Bell" completes onboarding and lands directly on the
+ * workout preview in the Train tab; "Skip for now" completes onboarding into
+ * the app — First Bell waits as the kid's next open node in The First Week,
+ * so nothing is lost by skipping.
  *
  * NOTE: everything here is function, not final look — copy/art/theme come later.
  */
@@ -25,6 +31,7 @@ const GOALS = [
 ];
 
 export default function OnboardingFlow() {
+  const router = useRouter();
   const { session, refreshProfile } = useAuth();
   const [step, setStep] = useState<Step>('goals');
   const [busy, setBusy] = useState(false);
@@ -56,16 +63,32 @@ export default function OnboardingFlow() {
     else setStep('film');
   };
 
-  const ringFirstBell = async () => {
+  /** Complete onboarding; optionally land straight on the First Bell preview. */
+  const finishOnboarding = async (goTrain: boolean) => {
     setBusy(true);
     setError('');
     const { error: e } = await supabase
       .from('profiles')
       .update({ onboarding_complete: true })
       .eq('id', uid);
+    if (e) {
+      setBusy(false);
+      setError(e.message);
+      return;
+    }
+    let target = '/';
+    if (goTrain) {
+      const { data } = await supabase
+        .from('content_items')
+        .select('id')
+        .eq('type', 'workout')
+        .eq('title', 'First Bell')
+        .maybeSingle();
+      target = data?.id ? `/train?open=${data.id}` : '/train';
+    }
     setBusy(false);
-    if (e) setError(e.message);
-    else await refreshProfile(); // AuthGate re-renders into the app
+    await refreshProfile(); // AuthGate re-renders into the app
+    router.replace(target as never);
   };
 
   const stepIndex = ['goals', 'deal', 'film', 'firstbell'].indexOf(step);
@@ -131,15 +154,19 @@ export default function OnboardingFlow() {
       {step === 'firstbell' && (
         <View style={styles.body}>
           <Text style={styles.bigEmoji}>🔔</Text>
-          <Text style={styles.title}>Ring the First Bell</Text>
+          <Text style={styles.title}>Ring the First Bell?</Text>
           <Text style={styles.subtitle}>
-            Your first workout is waiting. Two rounds, stance and jab. Let&apos;s go.
+            Your first workout is ready — two rounds, stance and jab. Do it now, or find it waiting
+            at the start of The First Week whenever you&apos;re ready.
           </Text>
           <Pressable
             style={[styles.primary, busy && styles.disabled]}
             disabled={busy}
-            onPress={ringFirstBell}>
-            <Text style={styles.primaryText}>{busy ? 'Starting…' : 'Ring the First Bell'}</Text>
+            onPress={() => finishOnboarding(true)}>
+            <Text style={styles.primaryText}>{busy ? 'Starting…' : 'Ring the First Bell 🥊'}</Text>
+          </Pressable>
+          <Pressable disabled={busy} onPress={() => finishOnboarding(false)} hitSlop={8}>
+            <Text style={styles.skipText}>Skip for now — take me to the app</Text>
           </Pressable>
         </View>
       )}
@@ -203,5 +230,11 @@ const styles = StyleSheet.create({
   },
   disabled: { opacity: 0.5 },
   primaryText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  skipText: {
+    fontSize: 15,
+    color: theme.colors.muted,
+    textDecorationLine: 'underline',
+    marginTop: 4,
+  },
   error: { marginTop: 20, fontSize: 14, color: theme.colors.danger, textAlign: 'center' },
 });

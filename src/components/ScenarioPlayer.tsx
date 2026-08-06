@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -45,6 +45,13 @@ type Beat = { nodeId: string; chosen?: string }; // the path walked so far
 
 export default function ScenarioPlayer({ item, scenario }: Props) {
   const router = useRouter();
+  // Rendered inside the /lesson/[id] route, so the lesson's params are ours.
+  // returnTo sends "Done"/back to wherever opened us (e.g. the ladder).
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
+  const goBack = () => {
+    if (typeof returnTo === 'string' && returnTo.startsWith('/')) router.replace(returnTo as never);
+    else router.back();
+  };
   const [path, setPath] = useState<Beat[]>([{ nodeId: scenario.start }]);
   const [phase, setPhase] = useState<'playing' | 'reflection' | 'done'>('playing');
   const [busy, setBusy] = useState(false);
@@ -85,7 +92,7 @@ export default function ScenarioPlayer({ item, scenario }: Props) {
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>This scenario has a broken step — content needs fixing.</Text>
-        <Pressable style={styles.quietBtn} onPress={() => router.back()}>
+        <Pressable style={styles.quietBtn} onPress={goBack}>
           <Text style={styles.quietBtnText}>Go back</Text>
         </Pressable>
       </View>
@@ -95,7 +102,7 @@ export default function ScenarioPlayer({ item, scenario }: Props) {
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
+        <Pressable onPress={goBack} hitSlop={12}>
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
 
@@ -179,7 +186,7 @@ export default function ScenarioPlayer({ item, scenario }: Props) {
                     <Pressable style={styles.quietBtn} onPress={runItBack}>
                       <Text style={styles.quietBtnText}>Run it back ↺</Text>
                     </Pressable>
-                    <Pressable style={styles.completeBtn} onPress={() => router.back()}>
+                    <Pressable style={styles.completeBtn} onPress={goBack}>
                       <Text style={styles.completeText}>Done</Text>
                     </Pressable>
                   </View>
