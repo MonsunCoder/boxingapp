@@ -1,6 +1,6 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -102,6 +102,20 @@ export default function LessonScreen() {
     // + deprecation warning). Errors surface through the dead-clip watcher.
     if (videoUrl) player.replaceAsync(videoUrl).catch(() => setVideoDead(true));
   }, [videoUrl, player]);
+
+  // Going away = going quiet (Day 30): the screen stays mounted on blur, so
+  // a playing clip kept its sound running under other tabs. Pause on blur.
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        try {
+          player.pause();
+        } catch {
+          // player may already be released — silence is the goal either way
+        }
+      };
+    }, [player]),
+  );
 
   // If the clip errors or never loads, drop the player instead of showing a
   // dead black box. The lesson never depended on it — key steps carry the

@@ -1,6 +1,6 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/constants/theme';
@@ -53,6 +53,20 @@ export default function FilmPlayer({ item, film }: Props) {
   const player = useVideoPlayer(film.video_url, (p) => {
     p.loop = false;
   });
+
+  // Going away = going quiet (Day 30): pause the film when focus leaves —
+  // tab screens stay mounted on blur, so sound otherwise lingers.
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        try {
+          player.pause();
+        } catch {
+          // already released — fine
+        }
+      };
+    }, [player]),
+  );
 
   // Unlock the reflection when the film reaches its end (0.5s slack).
   // Also watch for trouble: if the player reports an error, or the clip still

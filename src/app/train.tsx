@@ -129,6 +129,22 @@ export default function TrainScreen() {
 
   useEffect(() => () => Speech.stop(), []);
 
+  // Going away = going quiet (Day 30 fix). Tab screens stay MOUNTED when you
+  // switch tabs — they only lose focus — so a running round kept talking from
+  // other pages. On blur: kill the voice and auto-pause a live workout so the
+  // kid comes back to a paused round, not a missed one.
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        Speech.stop();
+        if (phaseRef.current === 'work' || phaseRef.current === 'rest') {
+          setRemainingMs(Math.max(0, endsAtRef.current - Date.now()));
+          setPaused(true);
+        }
+      };
+    }, []),
+  );
+
   // Honor the deep link once per distinct `open` value, only from the list.
   useEffect(() => {
     if (!open || typeof open !== 'string' || open === handledOpenRef.current) return;
