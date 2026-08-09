@@ -30,7 +30,9 @@ type WorkoutConfig = {
   placeholder?: boolean;
   subtitle?: string;
   equipment?: string[];
-  actions?: { name: string; roundSeconds: number }[];
+  mode?: 'rounds' | 'reps'; // Day 32: 'reps' = sets×reps strength sessions
+  actions?: { name: string; roundSeconds: number }[]; // rounds mode
+  exercises?: { name: string; sets: number; reps: number; cue?: string }[]; // reps mode
   restSeconds?: number;
   round_callouts?: Callout[][];
   rest_callouts?: Callout[];
@@ -54,7 +56,7 @@ const QUICK_ROUND_CALLOUTS: Callout[] = [
 ];
 const QUICK_REST_CALLOUTS: Callout[] = [{ at: 5, text: 'Ready.' }];
 
-type Phase = 'list' | 'preview' | 'work' | 'rest' | 'summary';
+type Phase = 'list' | 'preview' | 'work' | 'rest' | 'reps' | 'summary';
 type RecordResult =
   | { awarded: number; first_time?: boolean; total_xp?: number; level?: number; reason?: string }
   | { error: string };
@@ -99,6 +101,12 @@ export default function TrainScreen() {
   const actions = workout?.config?.actions ?? [];
   const totalRounds = actions.length;
   const restSeconds = workout?.config?.restSeconds ?? 60;
+  const isReps = workout?.config?.mode === 'reps';
+  const exercises = workout?.config?.exercises ?? [];
+
+  // Reps-mode cursor (Day 32): which exercise, which set.
+  const [exIndex, setExIndex] = useState(0);
+  const [setNum, setSetNum] = useState(1);
 
   // Load every runnable workout/drill. Reload on focus so new content rows
   // appear without a restart.
@@ -145,18 +153,51 @@ export default function TrainScreen() {
     }, []),
   );
 
+  const isRunnable = (i: WorkoutItem) =>
+    (i.config?.actions?.length ?? 0) > 0 || (i.config?.exercises?.length ?? 0) > 0;
+
   // Honor the deep link once per distinct `open` value, only from the list.
   useEffect(() => {
     if (!open || typeof open !== 'string' || open === handledOpenRef.current) return;
     if (phaseRef.current !== 'list' || items.length === 0) return;
     const target = items.find((i) => i.id === open);
-    if (target && (target.config?.actions?.length ?? 0) > 0) {
+    if (target && isRunnable(target)) {
       handledOpenRef.current = open;
       setWorkout(target);
       setResult(null);
       setPhase('preview');
     }
   }, [open, items]);
+
+  // ── REPS MODE (Day 32): sets × reps, no clock — the kid sets the pace. ──
+  const startReps = () => {
+    setExIndex(0);
+    setSetNum(1);
+    setPhase('reps');
+    const first = exercises[0];
+    if (first) say(`First up: ${first.name}. ${first.sets} sets of ${first.reps}. Set one — go.`);
+  };
+
+  const completeSet = () => {
+    const ex = exercises[exIndex];
+    if (!ex) return;
+    if (setNum < ex.sets) {
+      const next = setNum + 1;
+      setSetNum(next);
+      say(`Set ${next} of ${ex.sets}. Breathe, then go.`);
+      return;
+    }
+    const nextIndex = exIndex + 1;
+    if (nextIndex < exercises.length) {
+      const nx = exercises[nextIndex];
+      setExIndex(nextIndex);
+      setSetNum(1);
+      say(`Next: ${nx.name}. ${nx.sets} sets of ${nx.reps}. Set one — go.`);
+    } else {
+      setPhase('summary');
+      say('That is the bell. Workout complete.');
+    }
+  };
 
   const secondsFor = useCallback(
     (p: 'work' | 'rest', r: number) =>
@@ -313,18 +354,22 @@ export default function TrainScreen() {
             </View>
           )}
           renderItem={({ item }) => {
-            const ready = (item.config?.actions?.length ?? 0) > 0;
+            const ready = isRunnable(item);
+            const reps = item.config?.mode === 'reps';
+            const shape = reps
+              ? `${item.config.exercises!.length} exercises`
+              : `${item.config?.actions?.length ?? 0} rounds`;
             return (
               <Pressable
                 style={({ pressed }) => [styles.listCard, pressed && ready && styles.listPressed]}
                 disabled={!ready}
                 onPress={() => openWorkout(item)}>
-                <Text style={styles.listEmoji}>{done(item) ? '✅' : '🥊'}</Text>
+                <Text style={styles.listEmoji}>{done(item) ? '✅' : reps ? '💪' : '🥊'}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.listTitle}>{item.title}</Text>
                   <Text style={styles.listMeta}>
                     {ready
-                      ? `${item.config.actions!.length} rounds${item.duration_min ? ` · ~${item.duration_min} min` : ''} · `
+                      ? `${shape}${item.duration_min ? ` · ~${item.duration_min} min` : ''} · `
                       : 'Script coming soon · '}
                     <Text style={styles.gold}>+{item.xp_value} XP</Text>
                     {done(item) && repeat(item) ? '  ·  🔁 keep practicing' : ''}
@@ -360,25 +405,65 @@ export default function TrainScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Rounds</Text>
-          {actions.map((a, i) => (
-            <Text key={a.name} style={styles.cardBody}>
-              {i + 1}. {a.name} — {Math.round(a.roundSeconds / 60)} min
-            </Text>
-          ))}
+          <Text style={styles.cardLabel}>{isReps ? 'Exercises' : 'Rounds'}</Text>
+          {isReps
+            ? exercises.map((ex, i) => (
+                <Text key={ex.name} style={styles.cardBody}>
+                  {i + 1}. {ex.name} — {ex.sets} × {ex.reps}
+                </Text>
+              ))
+            : actions.map((a, i) => (
+                <Text key={a.name} style={styles.cardBody}>
+                  {i + 1}. {a.name} — {Math.round(a.roundSeconds / 60)} min
+                </Text>
+              ))}
           <Text style={styles.cardMeta}>
-            Rest {restSeconds}s · voice callouts on ·{' '}
+            {isReps ? 'Your pace · voice cues on · ' : `Rest ${restSeconds}s · voice callouts on · `}
             <Text style={styles.gold}>+{workout.xp_value} XP</Text>
           </Text>
         </View>
 
-        <Pressable style={styles.startBtn} onPress={() => startPhase('work', 1)}>
+        <Pressable style={styles.startBtn} onPress={() => (isReps ? startReps() : startPhase('work', 1))}>
           <Text style={styles.startText}>Start</Text>
         </Pressable>
 
-        <Pressable onPress={() => setQuick(!quick)} hitSlop={8}>
-          <Text style={styles.devToggle}>⚡ Quick test mode: {quick ? 'ON (15s rounds)' : 'off'}</Text>
+        {!isReps && (
+          <Pressable onPress={() => setQuick(!quick)} hitSlop={8}>
+            <Text style={styles.devToggle}>⚡ Quick test mode: {quick ? 'ON (15s rounds)' : 'off'}</Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  }
+
+  // ── REPS SESSION (Day 32): no clock, the kid sets the pace ───────────────
+  if (phase === 'reps') {
+    const ex = exercises[exIndex];
+    const totalSets = exercises.reduce((s, e) => s + e.sets, 0);
+    const doneSets = exercises.slice(0, exIndex).reduce((s, e) => s + e.sets, 0) + (setNum - 1);
+    return (
+      <View style={[styles.screen, styles.workBg]}>
+        <Text style={styles.phaseLabel}>
+          EXERCISE {exIndex + 1} OF {exercises.length}
+        </Text>
+        <Text style={styles.repsName}>{ex?.name}</Text>
+        <Text style={styles.repsCount}>
+          {ex?.reps} <Text style={styles.repsUnit}>reps</Text>
+        </Text>
+        <Text style={styles.calloutText}>
+          Set {setNum} of {ex?.sets}
+          {ex?.cue ? `\n${ex.cue}` : ''}
+        </Text>
+        <Text style={styles.nextHint}>{doneSets}/{totalSets} sets in the bank</Text>
+
+        <Pressable style={styles.setDoneBtn} onPress={completeSet}>
+          <Text style={styles.startText}>Set done ✓</Text>
         </Pressable>
+        <View style={styles.controls}>
+          <Pressable style={[styles.ctrlBtn, styles.endBtn]} onPress={confirmEnd}>
+            <Text style={[styles.ctrlText, styles.endText]}>End</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -391,7 +476,9 @@ export default function TrainScreen() {
         <Text style={styles.bigEmoji}>🔔</Text>
         <Text style={styles.title}>That’s the bell.</Text>
         <Text style={styles.subtitle}>
-          {totalRounds} rounds · {fmt(workMs)} of work. You showed up — that’s the whole job.
+          {isReps
+            ? `${exercises.reduce((s, e) => s + e.sets, 0)} sets across ${exercises.length} exercises. You showed up — that’s the whole job.`
+            : `${totalRounds} rounds · ${fmt(workMs)} of work. You showed up — that’s the whole job.`}
         </Text>
 
         {recording && <Text style={styles.cardMeta}>Saving your work…</Text>}
@@ -560,4 +647,15 @@ const styles = StyleSheet.create({
   ctrlText: { color: theme.colors.text, fontSize: theme.font.body, fontWeight: '600' },
   endBtn: { borderColor: theme.colors.danger },
   endText: { color: theme.colors.danger },
+
+  repsName: { fontSize: 30, fontWeight: '800', color: theme.colors.text, textAlign: 'center' },
+  repsCount: { fontSize: 76, fontWeight: '800', color: theme.colors.red, fontVariant: ['tabular-nums'] },
+  repsUnit: { fontSize: theme.font.header, color: theme.colors.muted, fontWeight: '700' },
+  setDoneBtn: {
+    backgroundColor: theme.colors.red,
+    borderRadius: theme.radius.pill,
+    paddingVertical: 18,
+    paddingHorizontal: 64,
+    marginTop: theme.space.md,
+  },
 });

@@ -180,6 +180,18 @@ export default function LearnScreen() {
                   </View>
                 );
               })}
+            {/* Meal Plans entry (Day 31) — the basic customizer lives one tap deep */}
+            <Pressable
+              style={({ pressed }) => [styles.plansCard, pressed && styles.cardPressed]}
+              onPress={() => router.push('/plans')}>
+              <Text style={styles.pathEmoji}>🍽️</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.title}>Meal Plans</Text>
+                <Text style={styles.meta}>Budget weekly menus for your goal — pick one, own it.</Text>
+              </View>
+              <Text style={styles.chevron}>›</Text>
+            </Pressable>
+
             <Text style={styles.sectionTitle}>Library</Text>
             <TextInput
               style={styles.searchBox}
@@ -267,6 +279,17 @@ const styles = StyleSheet.create({
     marginBottom: theme.space.sm,
   },
   pathCardQuiet: { borderColor: theme.colors.line },
+  plansCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.space.sm,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.green,
+    padding: theme.space.md,
+    marginTop: theme.space.sm,
+  },
   pathDone: { borderColor: theme.colors.green },
   pathEmoji: { fontSize: 26 },
   pathProgress: { fontSize: theme.font.small, color: theme.colors.gold, fontWeight: '700', marginTop: 4 },
