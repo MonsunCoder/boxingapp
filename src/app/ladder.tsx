@@ -61,6 +61,29 @@ export default function LadderScreen() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [celebrate, setCelebrate] = useState<{ tier: string; degree: number } | null>(null);
+  const [sharing, setSharing] = useState(false);
+
+  // Day 34: share the new belt straight to the HOPE feed (t/Wins).
+  const shareWin = async (label: string) => {
+    setSharing(true);
+    const { data: auth } = await supabase.auth.getUser();
+    const { data: topic } = await supabase
+      .from('forum_topics')
+      .select('id')
+      .eq('title', 'Wins')
+      .maybeSingle();
+    if (auth?.user && topic) {
+      await supabase.from('forum_posts').insert({
+        topic_id: topic.id,
+        author_id: auth.user.id,
+        title: `🏅 New belt: ${label}`,
+        body: `Just earned ${label}. One round at a time. 🥋`,
+      });
+      setMessage('✓ Shared to the feed — see it on Connect');
+    }
+    setSharing(false);
+    setCelebrate(null);
+  };
   // The words-first prompt: set when try_rank_up() blocks on an ethics lesson.
   const [ethicsPrompt, setEthicsPrompt] = useState<RankRequirement | null>(null);
 
@@ -301,8 +324,14 @@ export default function LadderScreen() {
             <Text style={styles.celebrateTitle}>NEW BELT</Text>
             <Text style={styles.celebrateBelt}>{celebrate ? rankLabel(celebrate, tiers) : ''}</Text>
             <Text style={styles.cardMeta}>You earned it one round at a time.</Text>
-            <Pressable style={styles.celebrateBtn} onPress={() => setCelebrate(null)}>
-              <Text style={styles.celebrateBtnText}>Let’s go</Text>
+            <Pressable
+              style={[styles.celebrateBtn, sharing && { opacity: 0.6 }]}
+              disabled={sharing}
+              onPress={() => celebrate && shareWin(rankLabel(celebrate, tiers))}>
+              <Text style={styles.celebrateBtnText}>{sharing ? 'Sharing…' : 'Share the win 🏅'}</Text>
+            </Pressable>
+            <Pressable onPress={() => setCelebrate(null)} hitSlop={8}>
+              <Text style={styles.celebrateSkip}>Keep it quiet</Text>
             </Pressable>
           </View>
         </View>
@@ -477,4 +506,10 @@ const styles = StyleSheet.create({
     marginTop: theme.space.sm,
   },
   celebrateBtnText: { color: '#fff', fontSize: theme.font.body, fontWeight: '800' },
+  celebrateSkip: {
+    fontSize: theme.font.small,
+    color: theme.colors.muted,
+    textDecorationLine: 'underline',
+    marginTop: 4,
+  },
 });
