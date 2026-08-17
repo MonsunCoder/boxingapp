@@ -89,6 +89,7 @@ export default function ConnectScreen() {
   const [activityOpen, setActivityOpen] = useState(false);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [challengeMsg, setChallengeMsg] = useState('');
+  const [heldNotice, setHeldNotice] = useState('');
   const [topics, setTopics] = useState<Topic[]>([]);
   const [topicFilter, setTopicFilter] = useState<string | null>(null);
   const [posts, setPosts] = useState<Post[] | null>(null);
@@ -195,12 +196,12 @@ export default function ConnectScreen() {
     if (!session || !topicId || body.length < 2) return;
     setBusy(true);
     setError('');
-    const title = draftTitle.trim() || body.slice(0, 60);
-    const { error: insError } = await supabase.from('forum_posts').insert({
-      topic_id: topicId,
-      author_id: session.user.id,
-      title,
-      body,
+    // Day 36: posting goes through create_post — the keyword filter runs
+    // server-side and a held post tells its author honestly.
+    const { data, error: insError } = await supabase.rpc('create_post', {
+      p_topic: topicId,
+      p_title: draftTitle.trim() || null,
+      p_body: body,
     });
     setBusy(false);
     if (insError) {
@@ -210,6 +211,15 @@ export default function ConnectScreen() {
     setComposer(false);
     setDraftTitle('');
     setDraftBody('');
+    const d = data as { held: boolean };
+    setChallengeMsg('');
+    if (d.held) {
+      setView('feed');
+      setError('');
+      setHeldNotice('A coach will look at that one before it goes up. Check the 🔔 for updates.');
+    } else {
+      setHeldNotice('');
+    }
     await loadFeed(topicFilter, null, false);
   };
 
@@ -319,6 +329,7 @@ export default function ConnectScreen() {
       )}
 
       {view === 'feed' && error !== '' && <Text style={styles.errorText}>{error}</Text>}
+      {view === 'feed' && heldNotice !== '' && <Text style={styles.heldNotice}>⏳ {heldNotice}</Text>}
 
       {view === 'feed' && (!posts ? (
         <View style={styles.center}>
@@ -512,6 +523,7 @@ const styles = StyleSheet.create({
   postFoot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   replyHint: { fontSize: theme.font.small, color: theme.colors.muted, fontWeight: '700' },
   challengeMsg: { fontSize: theme.font.body, color: theme.colors.gold, fontWeight: '700', marginBottom: theme.space.sm },
+  heldNotice: { fontSize: theme.font.small, color: theme.colors.gold, marginBottom: theme.space.xs },
   chBarTrack: {
     alignSelf: 'stretch',
     height: 10,

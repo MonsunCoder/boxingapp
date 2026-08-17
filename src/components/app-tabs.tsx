@@ -81,6 +81,7 @@ export default function AppTabs() {
       <Tabs.Screen name="pathway/[id]" options={{ href: null }} />
       <Tabs.Screen name="plans" options={{ href: null }} />
       <Tabs.Screen name="post/[id]" options={{ href: null }} />
+      <Tabs.Screen name="modqueue" options={{ href: null }} />
     </Tabs>
   );
 }

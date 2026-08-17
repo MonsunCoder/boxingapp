@@ -2,6 +2,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -94,10 +95,10 @@ export default function PostThreadScreen() {
     if (!session || !post || body.length < 1) return;
     setBusy(true);
     setError('');
-    const { error: insError } = await supabase.from('forum_replies').insert({
-      post_id: post.id,
-      author_id: session.user.id,
-      body,
+    // Day 36: replies route through create_reply — server-side keyword filter.
+    const { data, error: insError } = await supabase.rpc('create_reply', {
+      p_post: post.id,
+      p_body: body,
     });
     setBusy(false);
     if (insError) {
@@ -105,7 +106,24 @@ export default function PostThreadScreen() {
       return;
     }
     setDraft('');
+    const d = data as { held: boolean };
+    if (d.held) setError('⏳ A coach will look at that reply before it goes up.');
     await load();
+  };
+
+  // Day 36: the Report button — reasons picked from a fixed list, no free text
+  // (kids shouldn't have to write about what upset them to flag it).
+  const report = (type: 'post' | 'comment', id: string) => {
+    const send = async (reason: string) => {
+      await supabase.rpc('report_content', { p_type: type, p_id: id, p_reason: reason });
+      Alert.alert('Reported', 'A coach will take a look. Thank you for protecting the room.');
+    };
+    Alert.alert('Report this?', 'Why are you flagging it?', [
+      { text: 'Bullying or disrespect', onPress: () => send('bullying') },
+      { text: 'Bad language', onPress: () => send('language') },
+      { text: 'Not safe', onPress: () => send('unsafe') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   if (error && !post) {
@@ -154,11 +172,16 @@ export default function PostThreadScreen() {
                 <Text style={styles.postTitle}>{post.title}</Text>
               ) : null}
               <Text style={styles.postBody}>{post.body}</Text>
-              <Pressable style={styles.likeRow} onPress={like} hitSlop={8}>
-                <Text style={[styles.likeText, post.liked_by_me && styles.likedText]}>
-                  {post.liked_by_me ? '❤️' : '🤍'} {post.like_count}
-                </Text>
-              </Pressable>
+              <View style={styles.postFoot}>
+                <Pressable style={styles.likeRow} onPress={like} hitSlop={8}>
+                  <Text style={[styles.likeText, post.liked_by_me && styles.likedText]}>
+                    {post.liked_by_me ? '❤️' : '🤍'} {post.like_count}
+                  </Text>
+                </Pressable>
+                <Pressable onPress={() => report('post', post.id)} hitSlop={8}>
+                  <Text style={styles.reportText}>⚑ Report</Text>
+                </Pressable>
+              </View>
             </View>
             <Text style={styles.repliesHead}>
               {replies.length === 0 ? 'No replies yet — be the corner.' : `${replies.length} repl${replies.length === 1 ? 'y' : 'ies'}`}
@@ -167,11 +190,18 @@ export default function PostThreadScreen() {
         }
         renderItem={({ item }) => (
           <View style={[styles.reply, item.is_mine && styles.replyMine]}>
-            <Text style={styles.postMeta}>
-              <Text style={styles.author}>{item.author_name}</Text>
-              {'  ·  '}
-              {timeAgo(item.created_at)}
-            </Text>
+            <View style={styles.postFoot}>
+              <Text style={styles.postMeta}>
+                <Text style={styles.author}>{item.author_name}</Text>
+                {'  ·  '}
+                {timeAgo(item.created_at)}
+              </Text>
+              {!item.is_mine && (
+                <Pressable onPress={() => report('comment', item.id)} hitSlop={8}>
+                  <Text style={styles.reportText}>⚑</Text>
+                </Pressable>
+              )}
+            </View>
             <Text style={styles.postBody}>{item.body}</Text>
           </View>
         )}
@@ -227,6 +257,8 @@ const styles = StyleSheet.create({
   postTitle: { fontSize: theme.font.header, fontWeight: '800', color: theme.colors.text },
   postBody: { fontSize: theme.font.body, color: theme.colors.text, lineHeight: 21 },
   likeRow: { alignSelf: 'flex-start', marginTop: 2 },
+  postFoot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  reportText: { fontSize: theme.font.small, color: theme.colors.muted },
   likeText: { fontSize: theme.font.small, color: theme.colors.muted, fontWeight: '700' },
   likedText: { color: theme.colors.red },
 
