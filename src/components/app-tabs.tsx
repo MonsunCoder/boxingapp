@@ -82,6 +82,8 @@ export default function AppTabs() {
       <Tabs.Screen name="plans" options={{ href: null }} />
       <Tabs.Screen name="post/[id]" options={{ href: null }} />
       <Tabs.Screen name="modqueue" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
+      <Tabs.Screen name="privacy" options={{ href: null }} />
     </Tabs>
   );
 }
