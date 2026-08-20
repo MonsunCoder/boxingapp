@@ -84,6 +84,7 @@ export default function AppTabs() {
       <Tabs.Screen name="modqueue" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null }} />
       <Tabs.Screen name="privacy" options={{ href: null }} />
+      <Tabs.Screen name="paywall" options={{ href: null }} />
     </Tabs>
   );
 }

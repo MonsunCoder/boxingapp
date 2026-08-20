@@ -1,4 +1,4 @@
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 import * as Speech from 'expo-speech';
@@ -72,6 +72,7 @@ function say(text: string) {
 }
 
 export default function TrainScreen() {
+  const router = useRouter();
   // Deep link: /train?open=<content_id> lands straight on that workout's
   // preview (used by onboarding, the ladder, and pathway webs — Day 29).
   const { open } = useLocalSearchParams<{ open?: string }>();
@@ -493,6 +494,11 @@ export default function TrainScreen() {
           <View style={styles.xpBlock}>
             <Text style={styles.xpBig}>+{result.awarded} XP</Text>
             {result.first_time && <Text style={styles.cardMeta}>First-time bonus included!</Text>}
+            {result.first_time && (
+              <Pressable onPress={() => router.push('/paywall')} hitSlop={8}>
+                <Text style={styles.a6Link}>Your first win is in. See what's free vs Pro ›</Text>
+              </Pressable>
+            )}
             <Text style={styles.cardMeta}>
               Total {result.total_xp} XP · Level {result.level}
             </Text>
@@ -612,6 +618,7 @@ const styles = StyleSheet.create({
   gold: { color: theme.colors.gold, fontWeight: '700' },
   xpBlock: { alignItems: 'center', gap: theme.space.xs },
   xpBig: { fontSize: 44, fontWeight: '800', color: theme.colors.gold },
+  a6Link: { fontSize: theme.font.small, color: theme.colors.gold, textDecorationLine: 'underline', marginTop: 4 },
   errorText: { fontSize: theme.font.body, color: theme.colors.danger, textAlign: 'center' },
   startBtn: {
     backgroundColor: theme.colors.red,

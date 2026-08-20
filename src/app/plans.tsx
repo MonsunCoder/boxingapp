@@ -168,7 +168,7 @@ export default function PlansScreen() {
       })}
 
       {/* Paid tailored plan — placeholder (pitch split: AI nutrition is Pro) */}
-      <View style={styles.proCard}>
+      <Pressable style={styles.proCard} onPress={() => router.push('/paywall')}>
         <Text style={styles.proTitle}>💰 Tailored Plan — Pro</Text>
         <Text style={styles.meta}>
           A plan built around your goals, schedule, and kitchen — coming with the AI coach. This is
@@ -177,7 +177,7 @@ export default function PlansScreen() {
         <View style={styles.proBadge}>
           <Text style={styles.proBadgeText}>COMING SOON · PRO</Text>
         </View>
-      </View>
+      </Pressable>
     </ScrollView>
   );
 }

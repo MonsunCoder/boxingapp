@@ -136,6 +136,11 @@ export default function AccountScreen() {
         <Text style={styles.rowTitle}>Privacy & Your Data</Text>
         <Text style={styles.chevron}>›</Text>
       </Pressable>
+      <Pressable onPress={() => router.push('/paywall')} style={({ pressed }) => [styles.row, pressed && styles.off]}>
+        <Text style={styles.rowEmoji}>💰</Text>
+        <Text style={styles.rowTitle}>Free vs Pro</Text>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>
 
       <Pressable onPress={signOut} style={({ pressed }) => [styles.signOut, pressed && styles.off]}>
         <Text style={styles.signOutText}>Sign out</Text>
