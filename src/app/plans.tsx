@@ -13,13 +13,16 @@ import { supabase } from '../../lib/supabase';
  * (cut / maintain / build) the kid browses and saves as "my plan". No
  * personal data is collected — saving copies the template into meal_plans.
  *
- * The "Tailored plan" card is the PAID placeholder (pitch split: tailored/AI
- * nutrition is Pro). It marks where premium sits; the real paywall arrives
- * Day 38, the real AI tailoring with the coach build. Level-gating this
- * screen (L8) arrives with the unlocks pass.
+ * Day 41 — the Tailored Plan is REAL for Pro: pick a goal, the coach Edge
+ * Function has the model write a 7-day week in the template shape, validates
+ * it hard (no calorie numbers, ever — checked server-side, not just asked),
+ * and saves it as the active plan (is_ai_generated = true). Free accounts
+ * keep the teaser → paywall. No key configured → honest "being wired up".
  *
  * Content is placeholder like everything else — menus get punched up by the
- * client (he knows what his kids' kitchens actually hold).
+ * client (he knows what his kids' kitchens actually hold), and the full
+ * content plan may rename the mock goal vocabulary ("cut" is on the consult
+ * list).
  */
 
 type PlanDay = { day: string; meals: Record<string, string> };
@@ -32,7 +35,7 @@ type Template = {
   days: PlanDay[];
   sort_order: number;
 };
-type MyPlan = { id: string; config: { template_id?: string; title?: string; days?: PlanDay[] } };
+type MyPlan = { id: string; config: { template_id?: string; title?: string; days?: PlanDay[]; ai?: boolean } };
 
 const GOAL_LABEL: Record<string, string> = {
   cut: '⚖️ Make weight',
@@ -41,6 +44,7 @@ const GOAL_LABEL: Record<string, string> = {
 };
 
 const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'snack'];
+const GOALS: ('build' | 'maintain' | 'cut')[] = ['build', 'maintain', 'cut'];
 
 export default function PlansScreen() {
   const router = useRouter();
@@ -50,9 +54,13 @@ export default function PlansScreen() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [isPro, setIsPro] = useState(false);
+  const [aiGoal, setAiGoal] = useState<'build' | 'maintain' | 'cut'>('maintain');
+  const [generating, setGenerating] = useState(false);
+  const [aiMessage, setAiMessage] = useState('');
 
   const load = useCallback(async () => {
-    const [{ data: tpl }, { data: mine }] = await Promise.all([
+    const [{ data: tpl }, { data: mine }, { data: ent }] = await Promise.all([
       supabase.from('meal_plan_templates').select('*').order('sort_order'),
       supabase
         .from('meal_plans')
@@ -60,9 +68,11 @@ export default function PlansScreen() {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      supabase.rpc('my_entitlement'),
     ]);
     setTemplates((tpl as Template[]) ?? []);
     setMyPlan((mine as MyPlan) ?? null);
+    setIsPro(!!(ent as { premium?: boolean })?.premium);
   }, []);
 
   useFocusEffect(
@@ -91,6 +101,44 @@ export default function PlansScreen() {
     await load();
   };
 
+  // Day 41: ask the coach to build the week. All the guardrails live
+  // server-side (premium, rate limit, no-calorie validation).
+  const generate = async () => {
+    if (generating) return;
+    setGenerating(true);
+    setAiMessage('');
+    const { data, error } = await supabase.functions.invoke('coach', {
+      body: { action: 'nutrition', goal: aiGoal },
+    });
+    setGenerating(false);
+
+    let reason: string | undefined;
+    if (error) {
+      try {
+        const ctx = (error as { context?: Response }).context;
+        if (ctx) reason = ((await ctx.json()) as { reason?: string }).reason;
+      } catch {
+        /* no parseable body */
+      }
+    }
+    const d = (data ?? {}) as { ok?: boolean; title?: string; reason?: string };
+    reason = reason ?? d.reason;
+
+    if (d.ok) {
+      setAiMessage(`🎉 "${d.title}" is now your plan — scroll up to My Plan.`);
+      await load();
+      return;
+    }
+    const notices: Record<string, string> = {
+      not_configured:
+        'The AI kitchen isn’t hooked up yet (API key pending) — the template weeks above are ready meanwhile.',
+      rate_limited: 'That’s enough fresh plans for one day — tweak again tomorrow.',
+      not_premium: 'Tailored plans are a Pro feature.',
+      ai_error: 'The plan didn’t come out right — try again.',
+    };
+    setAiMessage(`⚠ ${notices[reason ?? ''] ?? 'Something went wrong — try again.'}`);
+  };
+
   if (!templates) {
     return (
       <View style={styles.center}>
@@ -112,9 +160,27 @@ export default function PlansScreen() {
       {/* My plan */}
       {myPlan?.config?.title && (
         <View style={styles.myPlanCard}>
-          <Text style={styles.myPlanLabel}>MY PLAN</Text>
+          <Text style={styles.myPlanLabel}>MY PLAN{myPlan.config.ai ? ' · 🧭 BUILT FOR ME' : ''}</Text>
           <Text style={styles.myPlanTitle}>🍽️ {myPlan.config.title}</Text>
-          <Text style={styles.meta}>Tap the same plan below to review it any time.</Text>
+          {myPlan.config.ai && myPlan.config.days ? (
+            <View style={{ gap: theme.space.sm, marginTop: theme.space.xs }}>
+              {myPlan.config.days.map((d) => (
+                <View key={d.day} style={styles.dayRow}>
+                  <Text style={styles.dayName}>{d.day}</Text>
+                  <View style={{ flex: 1 }}>
+                    {MEAL_ORDER.filter((m) => d.meals[m]).map((m) => (
+                      <Text key={m} style={styles.mealLine}>
+                        <Text style={styles.mealLabel}>{m}: </Text>
+                        {d.meals[m]}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.meta}>Tap the same plan below to review it any time.</Text>
+          )}
         </View>
       )}
       {message !== '' && <Text style={styles.message}>{message}</Text>}
@@ -167,17 +233,48 @@ export default function PlansScreen() {
         );
       })}
 
-      {/* Paid tailored plan — placeholder (pitch split: AI nutrition is Pro) */}
-      <Pressable style={styles.proCard} onPress={() => router.push('/paywall')}>
-        <Text style={styles.proTitle}>💰 Tailored Plan — Pro</Text>
-        <Text style={styles.meta}>
-          A plan built around your goals, schedule, and kitchen — coming with the AI coach. This is
-          where Pro begins; everything above stays free forever.
-        </Text>
-        <View style={styles.proBadge}>
-          <Text style={styles.proBadgeText}>COMING SOON · PRO</Text>
+      {/* Day 41: Tailored Plan — real for Pro, teaser for free */}
+      {isPro ? (
+        <View style={styles.aiCard}>
+          <Text style={styles.proTitle}>🧭 Tailored Plan — Pro</Text>
+          <Text style={styles.meta}>
+            The coach builds a fresh week around your goal. Same cheap staples, made for you. No
+            calorie counting — ever.
+          </Text>
+          <View style={styles.goalRow}>
+            {GOALS.map((g) => (
+              <Pressable
+                key={g}
+                style={[styles.goalChip, aiGoal === g && styles.goalChipOn]}
+                onPress={() => setAiGoal(g)}>
+                <Text style={[styles.goalChipText, aiGoal === g && styles.goalChipTextOn]}>
+                  {GOAL_LABEL[g]}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable
+            style={[styles.adoptBtn, generating && styles.btnOff]}
+            disabled={generating}
+            onPress={generate}>
+            <Text style={styles.adoptText}>
+              {generating ? 'The coach is building your week…' : 'Build my week'}
+            </Text>
+          </Pressable>
+          {aiMessage !== '' && <Text style={styles.message}>{aiMessage}</Text>}
         </View>
-      </Pressable>
+      ) : (
+        <Pressable style={styles.proCard} onPress={() => router.push('/paywall')}>
+          <Text style={styles.proTitle}>💰 Tailored Plan — Pro</Text>
+          <Text style={styles.meta}>
+            A fresh week built around your goal by the AI coach. This is where Pro begins;
+            everything above stays free forever.
+          </Text>
+          <View style={styles.proBadge}>
+            <Text style={styles.proBadgeText}>PRO · SEE FREE VS PRO</Text>
+          </View>
+        </Pressable>
+      )}
     </ScrollView>
   );
 }
@@ -240,6 +337,29 @@ const styles = StyleSheet.create({
   },
   btnOff: { backgroundColor: theme.colors.line },
   adoptText: { color: '#fff', fontSize: theme.font.body, fontWeight: '800' },
+
+  aiCard: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.gold,
+    borderWidth: 1,
+    borderRadius: theme.radius.md,
+    padding: theme.space.md,
+    gap: theme.space.sm,
+    marginTop: theme.space.sm,
+  },
+  goalRow: { flexDirection: 'row', gap: theme.space.xs },
+  goalChip: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    borderRadius: theme.radius.pill,
+    paddingVertical: 8,
+    alignItems: 'center',
+    backgroundColor: theme.colors.bg,
+  },
+  goalChipOn: { borderColor: theme.colors.gold, backgroundColor: theme.colors.surface },
+  goalChipText: { fontSize: theme.font.small, color: theme.colors.muted, fontWeight: '700' },
+  goalChipTextOn: { color: theme.colors.gold },
 
   proCard: {
     backgroundColor: theme.colors.surface,

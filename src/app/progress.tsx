@@ -4,6 +4,13 @@ import { useCallback, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/components/auth/AuthProvider';
+import {
+  COACH_NAME,
+  GuidanceResult,
+  REASON_COPY,
+  TYPE_GLYPH,
+  guidanceLink,
+} from '@/constants/coach';
 import { RankStatus, rankLabel } from '@/constants/ranks';
 import { theme } from '@/constants/theme';
 import { supabase } from '../../lib/supabase';
@@ -16,6 +23,11 @@ import { supabase } from '../../lib/supabase';
  *
  * Day 21: the Rank card is real. It reads rank_status() and taps through to the
  * ladder (decision D7 — the hub stays calm, the checklist lives one tap deep).
+ *
+ * Day 40: AI Guidance card. Premium sees "Recommended next" — the server's
+ * recommend_next() pick (deterministic engine; AI phrasing rides on top when
+ * the Edge Function has its key). Free sees a quiet Pro teaser. The card
+ * loads separately from the dashboard so a slow AI call never delays XP/rank.
  */
 
 type CurveRow = { level: number; cumulative_xp: number };
@@ -49,6 +61,7 @@ export default function ProgressScreen() {
   const [recent, setRecent] = useState<EventRow[]>([]);
   const [status, setStatus] = useState('Loading…');
   const [celebrate, setCelebrate] = useState<number | null>(null);
+  const [guide, setGuide] = useState<GuidanceResult | null>(null);
 
   const load = useCallback(async () => {
     if (!session) return;
@@ -97,13 +110,35 @@ export default function ProgressScreen() {
     }
   }, [session]);
 
+  // Day 40: AI Guidance loads on its own. Edge Function first (adds the AI
+  // note when a key is configured); direct RPC as fallback so the card still
+  // works if the function is unreachable. Both are premium-gated server-side.
+  const loadGuidance = useCallback(async () => {
+    if (!session) return;
+    try {
+      const { data, error } = await supabase.functions.invoke('coach', {
+        body: { action: 'recommend' },
+      });
+      if (!error && (data as { ok?: boolean })?.ok) {
+        setGuide(data as GuidanceResult);
+        return;
+      }
+      throw new Error('edge_unavailable');
+    } catch {
+      const { data } = await supabase.rpc('recommend_next');
+      setGuide((data as GuidanceResult) ?? null);
+    }
+  }, [session]);
+
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load]),
+      loadGuidance();
+    }, [load, loadGuidance]),
   );
 
   const questsDone = daily?.quests.filter((q) => q.done).length ?? 0;
+  const topRec = guide?.premium ? (guide.recommendations ?? [])[0] : undefined;
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -142,6 +177,41 @@ export default function ProgressScreen() {
           <Text style={styles.ladderLink}>See Ladder ›</Text>
         </Pressable>
       </View>
+
+      {/* Day 40 · AI Guidance */}
+      {guide && !guide.premium && (
+        <Pressable
+          style={({ pressed }) => [styles.wideCard, styles.guideCard, pressed && styles.cardPressed]}
+          onPress={() => router.push('/paywall')}>
+          <Text style={styles.guideLabel}>🧭 AI GUIDANCE · 💰 PRO</Text>
+          <Text style={styles.cardMeta}>
+            A personalized next step and {COACH_NAME} in your corner — see what Pro adds. Every
+            LESSON stays free, always.
+          </Text>
+        </Pressable>
+      )}
+      {guide?.premium && topRec && (
+        <View style={[styles.wideCard, styles.guideCard]}>
+          <Text style={styles.guideLabel}>🧭 RECOMMENDED NEXT</Text>
+          <Pressable
+            style={({ pressed }) => [styles.recRow, pressed && styles.cardPressed]}
+            onPress={() => router.push(guidanceLink(topRec, '/progress'))}>
+            <Text style={styles.recGlyph}>{TYPE_GLYPH[topRec.type] ?? '⭐'}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardBody} numberOfLines={1}>{topRec.title}</Text>
+              <Text style={styles.cardMeta} numberOfLines={2}>
+                {REASON_COPY[topRec.reason] ?? 'Picked for where you are right now.'}
+                {topRec.duration_min ? `  ·  ~${topRec.duration_min} min` : ''}
+              </Text>
+            </View>
+            <Text style={styles.goText}>Go ›</Text>
+          </Pressable>
+          {guide.note ? <Text style={styles.coachNote}>“{guide.note}”</Text> : null}
+          <Pressable hitSlop={8} onPress={() => router.push('/coach')}>
+            <Text style={styles.askLink}>Ask {COACH_NAME} 💬 ›</Text>
+          </Pressable>
+        </View>
+      )}
 
       {/* Streak + freeze bank */}
       <View style={styles.wideCard}>
@@ -237,6 +307,13 @@ const styles = StyleSheet.create({
     marginTop: theme.space.sm,
     gap: theme.space.sm,
   },
+  guideCard: { borderColor: theme.colors.gold },
+  guideLabel: { fontSize: theme.font.small, color: theme.colors.gold, fontWeight: '800', letterSpacing: 1 },
+  recRow: { flexDirection: 'row', alignItems: 'center', gap: theme.space.sm },
+  recGlyph: { fontSize: 28 },
+  goText: { fontSize: theme.font.body, color: theme.colors.red, fontWeight: '800' },
+  coachNote: { fontSize: theme.font.small, color: theme.colors.gold, fontStyle: 'italic', lineHeight: 18 },
+  askLink: { fontSize: theme.font.small, color: theme.colors.red, fontWeight: '700' },
   cardLabel: { fontSize: theme.font.small, color: theme.colors.muted, textTransform: 'uppercase', letterSpacing: 1 },
   levelNum: { fontSize: 44, fontWeight: '800', color: theme.colors.gold },
   rankEmoji: { fontSize: 36 },

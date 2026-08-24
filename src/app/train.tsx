@@ -22,6 +22,13 @@ import { supabase } from '../../lib/supabase';
  * Voice is still TTS placeholder; real recorded callouts arrive in content
  * production. Screen flow: LIST -> preview -> work/rest rounds -> summary.
  * Preview keeps D2 (clean pre-start screen) and D5 (equipment above actions).
+ *
+ * Day 41 — the coach's dial. After any workout the kid reports effort
+ * (free — it's just honest data). For Pro, workout_tuning() reads the last
+ * few reports and turns ONE safe lever: rest time (round callouts are
+ * stamped at absolute seconds, so round lengths never move). Felt easy →
+ * shorter rests + a run-it-back nudge; felt brutal → longer rests. The
+ * engine decides server-side; this screen just applies the dial.
  */
 
 type Callout = { at: number; text: string }; // `at` = seconds REMAINING in phase
@@ -47,6 +54,9 @@ type WorkoutItem = {
   duration_min: number | null;
   config: WorkoutConfig;
 };
+
+// Day 41: the dial workout_tuning() returns (only kept when it moved).
+type Tuning = { level: 'up' | 'down'; rest_scale: number; bonus_round: boolean };
 
 // Dev-only fast run (15s rounds) with a mini callout set.
 const QUICK_TEST = { roundSeconds: 15, restSeconds: 8 };
@@ -91,6 +101,8 @@ export default function TrainScreen() {
   const [callout, setCallout] = useState('');
   const [result, setResult] = useState<RecordResult | null>(null);
   const [recording, setRecording] = useState(false);
+  const [tuning, setTuning] = useState<Tuning | null>(null); // Day 41
+  const [effortSent, setEffortSent] = useState(false); // Day 41
 
   const endsAtRef = useRef(0);
   const phaseRef = useRef<Phase>('list');
@@ -157,6 +169,21 @@ export default function TrainScreen() {
   const isRunnable = (i: WorkoutItem) =>
     (i.config?.actions?.length ?? 0) > 0 || (i.config?.exercises?.length ?? 0) > 0;
 
+  // Day 41: ask the server if the coach's dial moved for this workout.
+  // Non-premium and 'steady' both come back as no-dial; errors just mean
+  // no tuning — the workout always runs as written.
+  const fetchTuning = useCallback((contentId: string) => {
+    setTuning(null);
+    supabase
+      .rpc('workout_tuning', { p_content_id: contentId })
+      .then(({ data }) => {
+        const t = data as { premium?: boolean; level?: string; rest_scale?: number; bonus_round?: boolean } | null;
+        if (t?.premium && (t.level === 'up' || t.level === 'down')) {
+          setTuning({ level: t.level, rest_scale: t.rest_scale ?? 1, bonus_round: !!t.bonus_round });
+        }
+      });
+  }, []);
+
   // Honor the deep link once per distinct `open` value, only from the list.
   useEffect(() => {
     if (!open || typeof open !== 'string' || open === handledOpenRef.current) return;
@@ -166,9 +193,11 @@ export default function TrainScreen() {
       handledOpenRef.current = open;
       setWorkout(target);
       setResult(null);
+      setEffortSent(false);
+      fetchTuning(target.id);
       setPhase('preview');
     }
-  }, [open, items]);
+  }, [open, items, fetchTuning]);
 
   // ── REPS MODE (Day 32): sets × reps, no clock — the kid sets the pace. ──
   const startReps = () => {
@@ -200,6 +229,10 @@ export default function TrainScreen() {
     }
   };
 
+  // Day 41: the dial only ever touches rest. Floor of 20s so "shorter rests"
+  // never becomes "no rest". Quick test mode ignores tuning entirely.
+  const tunedRestSeconds = Math.max(20, Math.round(restSeconds * (tuning?.rest_scale ?? 1)));
+
   const secondsFor = useCallback(
     (p: 'work' | 'rest', r: number) =>
       p === 'work'
@@ -208,8 +241,8 @@ export default function TrainScreen() {
           : (actions[r - 1]?.roundSeconds ?? 60)
         : quick
           ? QUICK_TEST.restSeconds
-          : restSeconds,
-    [quick, actions, restSeconds],
+          : tunedRestSeconds,
+    [quick, actions, tunedRestSeconds],
   );
 
   const calloutsFor = useCallback(
@@ -291,6 +324,14 @@ export default function TrainScreen() {
     })();
   }, [phase, result, recording, workout]);
 
+  // Day 41: log how it felt. Free for everyone — it's the honest data the
+  // Pro dial reads. Fire-and-forget; a failed log never blocks the summary.
+  const sendEffort = (effort: 'easy' | 'right' | 'hard') => {
+    if (!workout || effortSent) return;
+    setEffortSent(true);
+    supabase.rpc('report_effort', { p_content_id: workout.id, p_effort: effort }).then(() => {});
+  };
+
   const togglePause = () => {
     if (paused) {
       endsAtRef.current = Date.now() + remainingMs;
@@ -319,12 +360,16 @@ export default function TrainScreen() {
   const openWorkout = (item: WorkoutItem) => {
     setWorkout(item);
     setResult(null);
+    setEffortSent(false);
+    fetchTuning(item.id);
     setPhase('preview');
   };
 
   const backToList = () => {
     setResult(null);
     setWorkout(null);
+    setTuning(null);
+    setEffortSent(false);
     setPhase('list');
     loadList();
   };
@@ -419,10 +464,21 @@ export default function TrainScreen() {
                 </Text>
               ))}
           <Text style={styles.cardMeta}>
-            {isReps ? 'Your pace · voice cues on · ' : `Rest ${restSeconds}s · voice callouts on · `}
+            {isReps ? 'Your pace · voice cues on · ' : `Rest ${quick ? restSeconds : tunedRestSeconds}s · voice callouts on · `}
             <Text style={styles.gold}>+{workout.xp_value} XP</Text>
           </Text>
         </View>
+
+        {/* Day 41: the coach's dial, shown honestly when it moved (Pro) */}
+        {!isReps && tuning && (
+          <View style={[styles.card, styles.tuningCard]}>
+            <Text style={styles.tuningText}>
+              {tuning.level === 'up'
+                ? `🧭 Coach's dial: rests trimmed to ${tunedRestSeconds}s — your last runs felt easy. Earn your breather.`
+                : `🧭 Coach's dial: rests stretched to ${tunedRestSeconds}s — last time hit hard. Recovering IS training.`}
+            </Text>
+          </View>
+        )}
 
         <Pressable style={styles.startBtn} onPress={() => (isReps ? startReps() : startPhase('work', 1))}>
           <Text style={styles.startText}>Start</Text>
@@ -503,6 +559,28 @@ export default function TrainScreen() {
               Total {result.total_xp} XP · Level {result.level}
             </Text>
           </View>
+        )}
+
+        {/* Day 41: how did it feel? One tap, once — the coach's dial reads it. */}
+        {!effortSent ? (
+          <View style={styles.effortBlock}>
+            <Text style={styles.cardMeta}>How hard was that?</Text>
+            <View style={styles.effortRow}>
+              <Pressable style={styles.effortBtn} onPress={() => sendEffort('easy')}>
+                <Text style={styles.effortText}>😤 Too easy</Text>
+              </Pressable>
+              <Pressable style={styles.effortBtn} onPress={() => sendEffort('right')}>
+                <Text style={styles.effortText}>✅ Just right</Text>
+              </Pressable>
+              <Pressable style={styles.effortBtn} onPress={() => sendEffort('hard')}>
+                <Text style={styles.effortText}>🥵 Maxed out</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Text style={styles.cardMeta}>
+            Noted. 🧭 The coach&apos;s dial reads this next time{tuning?.bonus_round ? ' — and if you’ve got one more round in you, run it back.' : '.'}
+          </Text>
         )}
 
         <Pressable style={styles.startBtn} onPress={backToList}>
@@ -612,6 +690,8 @@ const styles = StyleSheet.create({
     padding: theme.space.md,
     gap: theme.space.xs,
   },
+  tuningCard: { borderColor: theme.colors.gold },
+  tuningText: { fontSize: theme.font.small, color: theme.colors.gold, lineHeight: 18, fontWeight: '600' },
   cardLabel: { fontSize: theme.font.small, color: theme.colors.muted, textTransform: 'uppercase', letterSpacing: 1 },
   cardBody: { fontSize: theme.font.body, color: theme.colors.text },
   cardMeta: { fontSize: theme.font.small, color: theme.colors.muted, marginTop: theme.space.xs, textAlign: 'center' },
@@ -620,6 +700,18 @@ const styles = StyleSheet.create({
   xpBig: { fontSize: 44, fontWeight: '800', color: theme.colors.gold },
   a6Link: { fontSize: theme.font.small, color: theme.colors.gold, textDecorationLine: 'underline', marginTop: 4 },
   errorText: { fontSize: theme.font.body, color: theme.colors.danger, textAlign: 'center' },
+  effortBlock: { alignItems: 'center', gap: theme.space.xs, alignSelf: 'stretch' },
+  effortRow: { flexDirection: 'row', gap: theme.space.xs, alignSelf: 'stretch' },
+  effortBtn: {
+    flex: 1,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    borderRadius: theme.radius.md,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  effortText: { fontSize: theme.font.small, color: theme.colors.text, fontWeight: '700' },
   startBtn: {
     backgroundColor: theme.colors.red,
     borderRadius: theme.radius.pill,
