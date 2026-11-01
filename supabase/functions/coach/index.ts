@@ -27,7 +27,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
  * legal punch-up before launch (pre-launch list).
  */
 
-const MODEL = Deno.env.get("COACH_MODEL") ?? "claude-haiku-4-5";
+const MODEL = Deno.env.get("COACH_MODEL") ?? "claude-haiku-5-5";
 const DAILY_LIMIT = 20;
 const MAX_QUESTION_CHARS = 500;
 const NUTRITION_DAILY_LIMIT = 3;
