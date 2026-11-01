@@ -3,6 +3,11 @@
 ## Expo has changed
 Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code.
 
+## Read first, every session
+1. `~/Claude/Projects/BoxingApp/PROJECT_MEMORY.md` (shared memory with the Claude app's BoxingApp project: preferences, rules, status, parked decisions). When a durable decision or status change happens, append it to that file's Decisions log with the date.
+2. `~/Claude/Projects/BoxingApp/SPEC.md` for any feature work; `Claude outputs/` there for the current plans.
+3. Never rewrite a whole file from memory or an older copy (this repository has lost features that way). Edit in place, and review `git diff` for unintended removals before every commit.
+
 ## What this is
 A boxing training app for teens (about 11 to 17), built especially for kids in underserved communities.
 Spine: "words first, boxing after." Owner: Jigar. Full specification: `SPEC.md` in the docs folder
