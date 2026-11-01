@@ -246,7 +246,7 @@ export default function LessonScreen() {
         </Text>
 
         {videoUrl && !videoDead ? (
-          <VideoView player={player} style={styles.video} contentFit="contain" allowsFullscreen />
+          <VideoView player={player} style={styles.video} contentFit="contain" />
         ) : null}
         {videoUrl && videoDead ? (
           <Text style={styles.videoDeadNote}>

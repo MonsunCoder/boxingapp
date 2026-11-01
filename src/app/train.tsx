@@ -148,7 +148,9 @@ export default function TrainScreen() {
     }, [loadList]),
   );
 
-  useEffect(() => () => Speech.stop(), []);
+  useEffect(() => () => {
+    Speech.stop();
+  }, []);
 
   // Going away = going quiet (Day 30 fix). Tab screens stay MOUNTED when you
   // switch tabs — they only lose focus — so a running round kept talking from

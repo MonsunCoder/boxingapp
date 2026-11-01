@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { type Href, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -195,7 +195,7 @@ export default function ProgressScreen() {
           <Text style={styles.guideLabel}>🧭 RECOMMENDED NEXT</Text>
           <Pressable
             style={({ pressed }) => [styles.recRow, pressed && styles.cardPressed]}
-            onPress={() => router.push(guidanceLink(topRec, '/progress'))}>
+            onPress={() => router.push(guidanceLink(topRec, '/progress') as Href)}>
             <Text style={styles.recGlyph}>{TYPE_GLYPH[topRec.type] ?? '⭐'}</Text>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardBody} numberOfLines={1}>{topRec.title}</Text>

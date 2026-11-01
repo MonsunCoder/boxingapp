@@ -126,6 +126,13 @@ export default function AccountScreen() {
           <Text style={styles.chevron}>›</Text>
         </Pressable>
       )}
+      {isCoach && (
+        <Pressable onPress={() => router.push('/impact')} style={({ pressed }) => [styles.row, styles.coachRow, pressed && styles.off]}>
+          <Text style={styles.rowEmoji}>📊</Text>
+          <Text style={styles.rowTitle}>Impact</Text>
+          <Text style={styles.chevron}>›</Text>
+        </Pressable>
+      )}
       <Pressable onPress={() => router.push('/settings')} style={({ pressed }) => [styles.row, pressed && styles.off]}>
         <Text style={styles.rowEmoji}>⚙️</Text>
         <Text style={styles.rowTitle}>Settings & Reminders</Text>

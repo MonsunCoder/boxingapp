@@ -86,6 +86,7 @@ export default function AppTabs() {
       <Tabs.Screen name="privacy" options={{ href: null }} />
       <Tabs.Screen name="paywall" options={{ href: null }} />
       <Tabs.Screen name="coach" options={{ href: null }} />
+      <Tabs.Screen name="impact" options={{ href: null }} />
     </Tabs>
   );
 }

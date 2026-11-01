@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
   },
   priceBest: { borderColor: theme.colors.gold },
   trialBadge: { backgroundColor: theme.colors.gold, borderRadius: theme.radius.pill, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 4 },
-  trialText: { fontSize: 8, fontWeight: '800', color: '#000', letterSpacing: 0.5 },
+  trialText: { fontSize: 10, fontWeight: '800', color: '#000', letterSpacing: 0.5 },
   price: { fontSize: theme.font.header, fontWeight: '800', color: theme.colors.text },
   priceMeta: { fontSize: theme.font.small, color: theme.colors.muted },
 

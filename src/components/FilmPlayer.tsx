@@ -128,7 +128,7 @@ export default function FilmPlayer({ item, film }: Props) {
           player={player}
           style={styles.video}
           contentFit="contain"
-          allowsFullscreen
+         
           allowsPictureInPicture={false}
         />
 
