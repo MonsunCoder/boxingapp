@@ -134,7 +134,15 @@ async function callClaude(
       "anthropic-version": "2023-06-01",
       "content-type": "application/json",
     },
-    body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, system, messages }),
+    // Haiku 5.5 thinks by default and thinking counts toward max_tokens.
+    // Low effort keeps these short phrasing jobs fast; the caps leave room.
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: maxTokens,
+      output_config: { effort: "low" },
+      system,
+      messages,
+    }),
   });
   if (!res.ok) {
     const detail = await res.text();
@@ -146,7 +154,7 @@ async function callClaude(
     .map((b: { text: string }) => b.text)
     .join("\n")
     .trim();
-  if (!text) throw new Error("anthropic_empty");
+  if (!text) throw new Error(`anthropic_empty (stop_reason: ${data.stop_reason})`);
   return text;
 }
 
@@ -202,7 +210,7 @@ Deno.serve(async (req: Request) => {
                 `\n\nIn 1-2 sentences, as my coach, tell me why this is the right next move for me specifically. Don't mention JSON or "the engine".`,
             },
           ],
-          150,
+          800,
         );
       } catch {
         note = null; // recommendation still stands without the garnish
@@ -288,7 +296,7 @@ Deno.serve(async (req: Request) => {
         apiKey,
         SYSTEM_PROMPT + `\n\nThe kid's training context: ${JSON.stringify(ctx)}`,
         [...history, { role: "user", content: question }],
-        350,
+        1200,
       );
     } catch (e) {
       console.error("coach ask failed:", e);
@@ -352,7 +360,7 @@ Deno.serve(async (req: Request) => {
             content: `Build my 7-day plan. ${goalLine[goal]}. Budget: low — cheap staples only. My training context (for flavor, not for calories): ${JSON.stringify(ctx)}`,
           },
         ],
-        1300,
+        4000,
       );
       plan = parsePlan(raw);
     } catch (e) {
