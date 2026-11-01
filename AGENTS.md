@@ -30,7 +30,7 @@ Spine: "words first, boxing after." Owner: Jigar. Full specification: `SPEC.md` 
 Talk like a good coach, not a poster. Short sentences, a kid's voice, no preaching. Never glorify violence. Celebrate restraint as strength.
 
 ## Stack as built
-- Expo 58 (managed, TypeScript), Expo Router with typed routes, React 19.3, React Native 0.88 (upgraded from Expo 57 on 2026-11-01 because the App Store Expo Go only runs the newest Expo version)
+- Expo 58 (managed, TypeScript), Expo Router with typed routes, React 19.3, React Native 0.88 (upgraded from Expo 57 on 2026-11-01 because the store version of Expo Go only runs the newest Expo version)
 - Supabase project `boxingapp-dev` (id `vuolnvibazfszsgzfjbw`, us-east-2): Postgres with row-level security, Auth, Storage, one Edge Function `coach`
 - Client: `lib/supabase.ts`. Screens: `src/app/`. Shared pieces: `src/components/`, `src/constants/`, `src/hooks/`
 - Callouts: expo-speech for now (bundled recorded audio planned). Video: expo-video. Reminders: expo-notifications.
