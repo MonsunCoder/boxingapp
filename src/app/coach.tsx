@@ -9,6 +9,7 @@ import {
   Text,
   TextInput,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 
 import { theme } from '@/constants/theme';
@@ -37,7 +38,7 @@ type Gate = 'loading' | 'locked' | 'open';
 
 export default function CoachScreen() {
   const router = useRouter();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const [gate, setGate] = useState<Gate>('loading');
   const [thread, setThread] = useState<CoachMessage[]>([]);
   const [draft, setDraft] = useState('');

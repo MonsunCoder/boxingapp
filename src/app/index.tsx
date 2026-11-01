@@ -138,7 +138,7 @@ export default function LearnScreen() {
         ListEmptyComponent={
           query.trim() !== '' ? (
             <Text style={styles.status}>Nothing matches “{query.trim()}”.</Text>
-          ) : null
+          ) : undefined
         }
         ListHeaderComponent={
           <>

@@ -268,7 +268,7 @@ export default function ConnectScreen() {
           keyExtractor={(c) => c.id}
           contentContainerStyle={{ paddingBottom: theme.space.xl }}
           ListHeaderComponent={
-            challengeMsg !== '' ? <Text style={styles.challengeMsg}>{challengeMsg}</Text> : null
+            challengeMsg !== '' ? <Text style={styles.challengeMsg}>{challengeMsg}</Text> : undefined
           }
           ListEmptyComponent={<Text style={styles.empty}>No challenges running right now.</Text>}
           renderItem={({ item }) => {
@@ -379,7 +379,7 @@ export default function ConnectScreen() {
               <Pressable style={styles.moreBtn} disabled={loadingMore} onPress={seeMore}>
                 <Text style={styles.moreText}>{loadingMore ? 'Loading…' : 'See More'}</Text>
               </Pressable>
-            ) : null
+            ) : undefined
           }
         />
       ))}
