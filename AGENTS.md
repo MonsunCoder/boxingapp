@@ -51,3 +51,7 @@ Talk like a good coach, not a poster. Short sentences, a kid's voice, no preachi
 - After each piece of work: run `npm run check`, add an entry to `BUILDLOG.md` in the docs folder, and list concrete device test steps.
 - Commit in small, described commits. Never commit `.env` (it holds the public Supabase keys and is ignored).
 - Test accounts: admin `saavanjmehta@outlook.com`; kid `monsoon1380@gmail.com`. Scholarship test code `HOPE-TEST01`.
+
+## Pushing to GitHub
+- The Mac's git has no GitHub sign-in; Claude pushes from its cloud copy of the repository (bring commits over with a `git bundle`, fast-forward, push, then align the Mac's `origin/main`).
+- After EVERY push, verify both sides and report them together: the Mac (what VS Code shows: latest commit, clean working tree, nothing ahead or behind) and GitHub (`git ls-remote origin main`). The two commit ids must match.
