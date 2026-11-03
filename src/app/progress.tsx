@@ -5,6 +5,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { useAuth } from '@/components/auth/AuthProvider';
 import {
+  AI_COACH_LABEL,
   COACH_NAME,
   GuidanceResult,
   REASON_COPY,
@@ -192,7 +193,7 @@ export default function ProgressScreen() {
       )}
       {guide?.premium && topRec && (
         <View style={[styles.wideCard, styles.guideCard]}>
-          <Text style={styles.guideLabel}>🧭 RECOMMENDED NEXT</Text>
+          <Text style={styles.guideLabel}>🧭 RECOMMENDED NEXT · {AI_COACH_LABEL.toUpperCase()}</Text>
           <Pressable
             style={({ pressed }) => [styles.recRow, pressed && styles.cardPressed]}
             onPress={() => router.push(guidanceLink(topRec, '/progress') as Href)}>

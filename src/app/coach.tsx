@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 
 import { theme } from '@/constants/theme';
-import { COACH_NAME, CoachMessage } from '@/constants/coach';
+import { AI_COACH_LABEL, COACH_NAME, CoachMessage } from '@/constants/coach';
 import { supabase } from '../../lib/supabase';
 
 /**
@@ -150,6 +150,7 @@ export default function CoachScreen() {
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.title}>Ask {COACH_NAME} 💬</Text>
+        <Text style={styles.aiTag}>{AI_COACH_LABEL}</Text>
         <Text style={styles.subtitle}>
           Boxing, LESSONs, food as fuel, staying consistent. Coaches at the gym can read this
           thread — same deal as the feed.
@@ -210,6 +211,18 @@ const styles = StyleSheet.create({
   back: { fontSize: theme.font.body, color: theme.colors.muted },
   title: { fontSize: theme.font.title, fontWeight: '800', color: theme.colors.text },
   subtitle: { fontSize: theme.font.small, color: theme.colors.muted, lineHeight: 18 },
+  aiTag: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: theme.colors.gold,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    fontSize: theme.font.small,
+    color: theme.colors.gold,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
 
   thread: { padding: theme.space.md, gap: theme.space.sm, paddingBottom: theme.space.lg },
   bubble: {

@@ -8,6 +8,9 @@
 
 export const COACH_NAME = 'Coach'; // placeholder — client is picking the real name
 
+/** Decision 3 (2026-11-03): kids always see that the coach is an AI. */
+export const AI_COACH_LABEL = 'AI coach';
+
 export type Recommendation = {
   content_id: string;
   title: string;
