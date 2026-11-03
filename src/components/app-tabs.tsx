@@ -11,7 +11,7 @@ import { theme } from '@/constants/theme';
  * Android, and web without any asset/vector-icon dependency. Active/inactive
  * state is carried by the label tint plus icon opacity.
  *
- * Day 21: `ladder` is a real route but NOT a sixth tab — href: null keeps it
+ * Day 21: `ladder` is a real route but NOT a sixth tab — OFF_TAB_BAR keeps it
  * out of the tab bar. It is reached one tap deep from the Progress rank card
  * (screen-list decision D7: hub first, ladder behind "See Ladder").
  *
@@ -20,6 +20,18 @@ import { theme } from '@/constants/theme';
  *
  * Day 24: `pathway/[id]` — the Journey view, opened from Learn's pathway cards.
  */
+
+/**
+ * Screens reachable by navigation but kept out of the tab bar.
+ *
+ * Expo Router 58 turned `href: null` into "hidden", which now REDIRECTS any
+ * link to that screen (to the first tab) — every one-tap-deep screen bounced
+ * to Learn after the Expo 58 upgrade. Hide only the tab button instead.
+ */
+const OFF_TAB_BAR = {
+  tabBarButton: () => null,
+  tabBarItemStyle: { display: 'none' },
+} as const;
 
 function TabIcon({ glyph, focused }: { glyph: string; focused: boolean }) {
   return <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.55 }}>{glyph}</Text>;
@@ -76,17 +88,17 @@ export default function AppTabs() {
       />
 
       {/* Reachable by navigation, hidden from the tab bar. */}
-      <Tabs.Screen name="ladder" options={{ href: null }} />
-      <Tabs.Screen name="lesson/[id]" options={{ href: null }} />
-      <Tabs.Screen name="pathway/[id]" options={{ href: null }} />
-      <Tabs.Screen name="plans" options={{ href: null }} />
-      <Tabs.Screen name="post/[id]" options={{ href: null }} />
-      <Tabs.Screen name="modqueue" options={{ href: null }} />
-      <Tabs.Screen name="settings" options={{ href: null }} />
-      <Tabs.Screen name="privacy" options={{ href: null }} />
-      <Tabs.Screen name="paywall" options={{ href: null }} />
-      <Tabs.Screen name="coach" options={{ href: null }} />
-      <Tabs.Screen name="impact" options={{ href: null }} />
+      <Tabs.Screen name="ladder" options={OFF_TAB_BAR} />
+      <Tabs.Screen name="lesson/[id]" options={OFF_TAB_BAR} />
+      <Tabs.Screen name="pathway/[id]" options={OFF_TAB_BAR} />
+      <Tabs.Screen name="plans" options={OFF_TAB_BAR} />
+      <Tabs.Screen name="post/[id]" options={OFF_TAB_BAR} />
+      <Tabs.Screen name="modqueue" options={OFF_TAB_BAR} />
+      <Tabs.Screen name="settings" options={OFF_TAB_BAR} />
+      <Tabs.Screen name="privacy" options={OFF_TAB_BAR} />
+      <Tabs.Screen name="paywall" options={OFF_TAB_BAR} />
+      <Tabs.Screen name="coach" options={OFF_TAB_BAR} />
+      <Tabs.Screen name="impact" options={OFF_TAB_BAR} />
     </Tabs>
   );
 }
