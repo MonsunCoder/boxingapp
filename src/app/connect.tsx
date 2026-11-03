@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 
 import { useAuth } from '@/components/auth/AuthProvider';
+import HeldWarningModal from '@/components/HeldWarningModal';
 import { theme } from '@/constants/theme';
 import { supabase } from '../../lib/supabase';
 
@@ -89,7 +90,7 @@ export default function ConnectScreen() {
   const [activityOpen, setActivityOpen] = useState(false);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [challengeMsg, setChallengeMsg] = useState('');
-  const [heldNotice, setHeldNotice] = useState('');
+  const [heldWarning, setHeldWarning] = useState(false);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [topicFilter, setTopicFilter] = useState<string | null>(null);
   const [posts, setPosts] = useState<Post[] | null>(null);
@@ -147,6 +148,9 @@ export default function ConnectScreen() {
     setActivityOpen(true);
     setUnseen(0);
     await AsyncStorage.setItem(LAST_SEEN_KEY, new Date().toISOString());
+    // Fresh list every open, so a warning from a just-held post is there.
+    const { data: act } = await supabase.rpc('activity_page');
+    setActivity((act as ActivityItem[]) ?? []);
   };
 
   const joinOrClaim = async (c: Challenge) => {
@@ -247,9 +251,9 @@ export default function ConnectScreen() {
     if (d.held) {
       setView('feed');
       setError('');
-      setHeldNotice('A coach will look at that one before it goes up. Check the 🔔 for updates.');
-    } else {
-      setHeldNotice('');
+      setHeldWarning(true); // severe warning; closes only on "I understand"
+      await loadAll(); // lights the 🔔 badge with the saved warning
+      return;
     }
     await loadFeed(topicFilter, 0, false);
   };
@@ -360,7 +364,7 @@ export default function ConnectScreen() {
       )}
 
       {view === 'feed' && error !== '' && <Text style={styles.errorText}>{error}</Text>}
-      {view === 'feed' && heldNotice !== '' && <Text style={styles.heldNotice}>⏳ {heldNotice}</Text>}
+      <HeldWarningModal kind="post" visible={heldWarning} onUnderstand={() => setHeldWarning(false)} />
 
       {view === 'feed' && (!posts ? (
         <View style={styles.center}>
@@ -427,29 +431,41 @@ export default function ConnectScreen() {
         <View style={styles.composerWrap}>
           <View style={[styles.composerCard, { maxHeight: '75%' }]}>
             <Text style={styles.composerTitle}>🔔 Activity</Text>
-            <Text style={styles.trustLine}>Replies to your posts. No DMs here — ever.</Text>
+            <Text style={styles.trustLine}>Replies to your posts and notices from the coaches. No DMs here — ever.</Text>
             <FlatList
               data={activity}
               keyExtractor={(a, i) => `${a.post_id}-${i}`}
               ListEmptyComponent={
                 <Text style={styles.empty}>Quiet so far. Post something worth replying to.</Text>
               }
-              renderItem={({ item }) => (
-                <Pressable
-                  style={({ pressed }) => [styles.activityRow, pressed && { opacity: 0.8 }]}
-                  onPress={() => {
-                    setActivityOpen(false);
-                    router.push(`/post/${item.post_id}`);
-                  }}>
-                  <Text style={styles.postMeta}>
-                    <Text style={styles.author}>{item.author_name}</Text> replied to “
-                    {item.post_title}” · {timeAgo(item.created_at)}
-                  </Text>
-                  <Text style={styles.postBody} numberOfLines={2}>
-                    {item.body}
-                  </Text>
-                </Pressable>
-              )}
+              renderItem={({ item }) =>
+                // Coach notices (held or removed) show in full and in red, and
+                // don't open the post: a held post isn't up to open.
+                item.kind === 'moderation' ? (
+                  <View style={styles.activityRow}>
+                    <Text style={styles.postMeta}>
+                      <Text style={styles.author}>{item.author_name}</Text> · about “{item.post_title}” ·{' '}
+                      {timeAgo(item.created_at)}
+                    </Text>
+                    <Text style={styles.modNotice}>{item.body}</Text>
+                  </View>
+                ) : (
+                  <Pressable
+                    style={({ pressed }) => [styles.activityRow, pressed && { opacity: 0.8 }]}
+                    onPress={() => {
+                      setActivityOpen(false);
+                      router.push(`/post/${item.post_id}`);
+                    }}>
+                    <Text style={styles.postMeta}>
+                      <Text style={styles.author}>{item.author_name}</Text> replied to “
+                      {item.post_title}” · {timeAgo(item.created_at)}
+                    </Text>
+                    <Text style={styles.postBody} numberOfLines={2}>
+                      {item.body}
+                    </Text>
+                  </Pressable>
+                )
+              }
             />
             <Pressable style={styles.quietBtn} onPress={() => setActivityOpen(false)}>
               <Text style={styles.quietText}>Close</Text>
@@ -561,7 +577,6 @@ const styles = StyleSheet.create({
   postFoot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   replyHint: { fontSize: theme.font.small, color: theme.colors.muted, fontWeight: '700' },
   challengeMsg: { fontSize: theme.font.body, color: theme.colors.gold, fontWeight: '700', marginBottom: theme.space.sm },
-  heldNotice: { fontSize: theme.font.small, color: theme.colors.gold, marginBottom: theme.space.xs },
   chBarTrack: {
     alignSelf: 'stretch',
     height: 10,
@@ -625,6 +640,7 @@ const styles = StyleSheet.create({
   postMilestone: { borderColor: theme.colors.gold },
   postMeta: { fontSize: theme.font.small, color: theme.colors.muted },
   author: { color: theme.colors.text, fontWeight: '700' },
+  modNotice: { fontSize: theme.font.body, color: theme.colors.danger, fontWeight: '700', lineHeight: 21 },
   postTitle: { fontSize: theme.font.body, fontWeight: '800', color: theme.colors.text },
   postBody: { fontSize: theme.font.body, color: theme.colors.text, lineHeight: 21 },
   likeRow: { alignSelf: 'flex-start', marginTop: 2 },

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import { useAuth } from '@/components/auth/AuthProvider';
+import HeldWarningModal from '@/components/HeldWarningModal';
 import { theme } from '@/constants/theme';
 import { supabase } from '../../../lib/supabase';
 
@@ -59,6 +60,7 @@ export default function PostThreadScreen() {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [heldWarning, setHeldWarning] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -124,7 +126,7 @@ export default function PostThreadScreen() {
     }
     setDraft('');
     const d = data as { held: boolean };
-    if (d.held) setError('⏳ A coach will look at that reply before it goes up.');
+    if (d.held) setHeldWarning(true); // severe warning; closes only on "I understand"
     await load();
   };
 
@@ -249,6 +251,7 @@ export default function PostThreadScreen() {
         </Pressable>
       </View>
       {error !== '' && post && <Text style={[styles.errorText, { paddingHorizontal: 16 }]}>{error}</Text>}
+      <HeldWarningModal kind="reply" visible={heldWarning} onUnderstand={() => setHeldWarning(false)} />
     </KeyboardAvoidingView>
   );
 }
