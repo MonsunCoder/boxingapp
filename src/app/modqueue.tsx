@@ -2,6 +2,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { APPEAL_REASONS } from '@/constants/conduct';
 import { theme } from '@/constants/theme';
 import { supabase } from '../../lib/supabase';
 
@@ -23,10 +24,14 @@ import { supabase } from '../../lib/supabase';
  */
 
 type QueueItem = {
-  queue_kind: 'review' | 'pile_on';
+  queue_kind: 'review' | 'pile_on' | 'appeal';
   up_count?: number;
   down_count?: number;
-  type: 'post' | 'comment';
+  // Fresh-start requests (conduct record, 2026-11-03)
+  reason?: 'learned' | 'filter_wrong' | 'other';
+  offense_total?: number;
+  offenses?: { excerpt: string | null; source: 'word_filter' | 'coach_removal'; created_at: string }[];
+  type: 'post' | 'comment' | 'appeal';
   id: string;
   status: string;
   author_name: string;
@@ -65,6 +70,13 @@ export default function ModQueueScreen() {
   const act = async (item: QueueItem, action: 'approve' | 'remove') => {
     setBusyId(item.id);
     await supabase.rpc('moderate_content', { p_type: item.type, p_id: item.id, p_action: action });
+    setBusyId(null);
+    await load();
+  };
+
+  const decideAppeal = async (item: QueueItem, freshStart: boolean) => {
+    setBusyId(item.id);
+    await supabase.rpc('decide_connect_appeal', { p_appeal: item.id, p_fresh_start: freshStart });
     setBusyId(null);
     await load();
   };
@@ -113,7 +125,40 @@ export default function ModQueueScreen() {
         keyExtractor={(i) => `${i.queue_kind}-${i.id}`}
         contentContainerStyle={{ padding: theme.space.md, paddingBottom: theme.space.xl }}
         renderItem={({ item }) =>
-          item.queue_kind === 'pile_on' ? (
+          item.queue_kind === 'appeal' ? (
+            <View style={[styles.card, styles.appealCard]}>
+              <Text style={styles.meta}>
+                🌱 {item.author_name} · <Text style={styles.appealTag}>FRESH-START REQUEST</Text>
+              </Text>
+              <Text style={styles.title}>
+                {APPEAL_REASONS.find((r) => r.key === item.reason)?.label ?? 'Something else'}
+              </Text>
+              {item.body ? <Text style={styles.body}>“{item.body}”</Text> : null}
+              <Text style={styles.recordHead}>
+                Conduct record: {item.offense_total ?? 0} counted offense
+                {(item.offense_total ?? 0) === 1 ? '' : 's'} (newest first)
+              </Text>
+              {(item.offenses ?? []).map((o, i) => (
+                <Text key={i} style={styles.recordLine} numberOfLines={2}>
+                  {o.source === 'word_filter' ? 'Filter' : 'Removed'} · {o.created_at.slice(0, 10)} · {o.excerpt}
+                </Text>
+              ))}
+              <View style={styles.btnRow}>
+                <Pressable
+                  style={[styles.btn, styles.approveBtn, busyId === item.id && styles.btnOff]}
+                  disabled={busyId !== null}
+                  onPress={() => decideAppeal(item, true)}>
+                  <Text style={styles.btnText}>🌱 Fresh start</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.btn, styles.notYetBtn, busyId === item.id && styles.btnOff]}
+                  disabled={busyId !== null}
+                  onPress={() => decideAppeal(item, false)}>
+                  <Text style={styles.btnText}>Not yet</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : item.queue_kind === 'pile_on' ? (
             <View style={[styles.card, styles.pileCard]}>
               <Text style={styles.meta}>
                 📄 Post · {item.author_name} · <Text style={styles.pileTag}>POSSIBLE PILE-ON</Text>
@@ -206,6 +251,11 @@ const styles = StyleSheet.create({
   pileTag: { color: theme.colors.text, fontWeight: '800' },
   pileCounts: { fontSize: theme.font.small, color: theme.colors.muted },
   seenBtn: { backgroundColor: theme.colors.line, flex: 0, marginTop: theme.space.xs },
+  appealCard: { borderColor: theme.colors.green },
+  appealTag: { color: theme.colors.green, fontWeight: '800' },
+  recordHead: { fontSize: theme.font.small, color: theme.colors.muted, fontWeight: '700', marginTop: theme.space.xs },
+  recordLine: { fontSize: theme.font.small, color: theme.colors.text },
+  notYetBtn: { backgroundColor: theme.colors.line },
   btnText: { color: '#fff', fontSize: theme.font.body, fontWeight: '800' },
 
   quietBtn: {

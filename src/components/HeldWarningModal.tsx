@@ -1,5 +1,6 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { ConnectStanding, standingLine } from '@/constants/conduct';
 import { theme } from '@/constants/theme';
 
 /**
@@ -11,18 +12,21 @@ import { theme } from '@/constants/theme';
  * This is the word filter's HELD path only. Hidden downvotes never show
  * anything to anyone (Decision 6) — never reuse this for burial.
  *
- * Copy is placeholder (content phase). There is no ban system yet: the
- * consequence is stated, not enforced.
+ * Copy is placeholder (content phase). The strike count under the warning
+ * comes from the server's standing after this hold (src/constants/conduct.ts).
  */
 export default function HeldWarningModal({
   kind,
   visible,
+  standing,
   onUnderstand,
 }: {
   kind: 'post' | 'reply';
   visible: boolean;
+  standing?: ConnectStanding | null;
   onUnderstand: () => void;
 }) {
+  const strikeLine = standingLine(standing ?? null);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={() => {}}>
       <View style={styles.backdrop}>
@@ -36,6 +40,7 @@ export default function HeldWarningModal({
           <Text style={styles.consequence}>
             Keep posting like this and your account can be suspended or banned from HOPE.
           </Text>
+          {strikeLine !== '' && <Text style={styles.strike}>{strikeLine}</Text>}
           <Text style={styles.note}>This warning is saved in your 🔔.</Text>
           <Pressable
             style={({ pressed }) => [styles.button, pressed && { opacity: 0.8 }]}
@@ -73,6 +78,13 @@ const styles = StyleSheet.create({
     fontSize: theme.font.body,
     fontWeight: '800',
     color: theme.colors.danger,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  strike: {
+    fontSize: theme.font.body,
+    fontWeight: '800',
+    color: theme.colors.gold,
     textAlign: 'center',
     lineHeight: 22,
   },

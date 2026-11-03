@@ -14,6 +14,7 @@ import {
 
 import { useAuth } from '@/components/auth/AuthProvider';
 import HeldWarningModal from '@/components/HeldWarningModal';
+import { ConnectStanding } from '@/constants/conduct';
 import { theme } from '@/constants/theme';
 import { supabase } from '../../../lib/supabase';
 
@@ -61,9 +62,13 @@ export default function PostThreadScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [heldWarning, setHeldWarning] = useState(false);
+  // Conduct record: read-only kids can read and report, not reply or vote.
+  const [standing, setStanding] = useState<ConnectStanding | null>(null);
+  const readOnly = standing?.state === 'banned';
 
   const load = useCallback(async () => {
     if (!id) return;
+    supabase.rpc('my_connect_standing').then(({ data: s }) => setStanding((s as ConnectStanding) ?? null));
     const { data, error: rpcError } = await supabase.rpc('post_thread', { p_post: id });
     if (rpcError) {
       setError(rpcError.message);
@@ -125,7 +130,8 @@ export default function PostThreadScreen() {
       return;
     }
     setDraft('');
-    const d = data as { held: boolean };
+    const d = data as { held: boolean; blocked?: string; standing?: ConnectStanding };
+    if (d.standing) setStanding(d.standing);
     if (d.held) setHeldWarning(true); // severe warning; closes only on "I understand"
     await load();
   };
@@ -193,12 +199,12 @@ export default function PostThreadScreen() {
               <Text style={styles.postBody}>{post.body}</Text>
               <View style={styles.postFoot}>
                 <View style={styles.voteRow}>
-                  <Pressable style={styles.likeRow} onPress={like} hitSlop={8}>
+                  <Pressable style={styles.likeRow} onPress={like} hitSlop={8} disabled={readOnly}>
                     <Text style={[styles.likeText, post.liked_by_me && styles.likedText]}>
                       {post.liked_by_me ? '❤️' : '🤍'} {post.like_count}
                     </Text>
                   </Pressable>
-                  {!post.is_mine && (
+                  {!post.is_mine && !readOnly && (
                     <Pressable style={styles.likeRow} onPress={downvote} hitSlop={8}>
                       <Text style={[styles.downText, post.downvoted_by_me && styles.downOn]}>👎</Text>
                     </Pressable>
@@ -233,6 +239,11 @@ export default function PostThreadScreen() {
         )}
       />
 
+      {readOnly ? (
+        <Text style={styles.readOnlyLine}>
+          🔒 Connect is read-only for you. Ask for a fresh start on the Connect tab.
+        </Text>
+      ) : (
       <View style={styles.composerBar}>
         <TextInput
           style={styles.input}
@@ -250,8 +261,14 @@ export default function PostThreadScreen() {
           <Text style={styles.sendText}>{busy ? '…' : 'Reply'}</Text>
         </Pressable>
       </View>
+      )}
       {error !== '' && post && <Text style={[styles.errorText, { paddingHorizontal: 16 }]}>{error}</Text>}
-      <HeldWarningModal kind="reply" visible={heldWarning} onUnderstand={() => setHeldWarning(false)} />
+      <HeldWarningModal
+        kind="reply"
+        visible={heldWarning}
+        standing={standing}
+        onUnderstand={() => setHeldWarning(false)}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -286,6 +303,13 @@ const styles = StyleSheet.create({
   likeRow: { alignSelf: 'flex-start', marginTop: 2 },
   postFoot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   reportText: { fontSize: theme.font.small, color: theme.colors.muted },
+  readOnlyLine: {
+    fontSize: theme.font.small,
+    color: theme.colors.danger,
+    fontWeight: '700',
+    padding: theme.space.md,
+    textAlign: 'center',
+  },
   voteRow: { flexDirection: 'row', alignItems: 'center', gap: theme.space.md },
   downText: { fontSize: theme.font.small, opacity: 0.45 },
   downOn: { opacity: 1 },

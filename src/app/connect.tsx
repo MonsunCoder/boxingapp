@@ -14,7 +14,9 @@ import {
 } from 'react-native';
 
 import { useAuth } from '@/components/auth/AuthProvider';
+import ConnectStandingBanner from '@/components/ConnectStandingBanner';
 import HeldWarningModal from '@/components/HeldWarningModal';
+import { ConnectStanding } from '@/constants/conduct';
 import { theme } from '@/constants/theme';
 import { supabase } from '../../lib/supabase';
 
@@ -91,6 +93,9 @@ export default function ConnectScreen() {
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [challengeMsg, setChallengeMsg] = useState('');
   const [heldWarning, setHeldWarning] = useState(false);
+  // Conduct record: the server decides; read-only hides posting and votes.
+  const [standing, setStanding] = useState<ConnectStanding | null>(null);
+  const readOnly = standing?.state === 'banned';
   const [topics, setTopics] = useState<Topic[]>([]);
   const [topicFilter, setTopicFilter] = useState<string | null>(null);
   const [posts, setPosts] = useState<Post[] | null>(null);
@@ -129,12 +134,14 @@ export default function ConnectScreen() {
   );
 
   const loadAll = useCallback(async () => {
-    const [{ data }, { data: act }, { data: chal }] = await Promise.all([
+    const [{ data }, { data: act }, { data: chal }, { data: stand }] = await Promise.all([
       supabase.from('forum_topics').select('id, title, description').eq('status', 'approved').order('created_at'),
       supabase.rpc('activity_page'),
       supabase.rpc('challenges_overview'),
+      supabase.rpc('my_connect_standing'),
     ]);
     setTopics((data as Topic[]) ?? []);
+    setStanding((stand as ConnectStanding) ?? null);
     const items = (act as ActivityItem[]) ?? [];
     setActivity(items);
     setChallenges((chal as Challenge[]) ?? []);
@@ -246,8 +253,13 @@ export default function ConnectScreen() {
     setComposer(false);
     setDraftTitle('');
     setDraftBody('');
-    const d = data as { held: boolean };
+    const d = data as { held: boolean; blocked?: string; standing?: ConnectStanding };
     setChallengeMsg('');
+    if (d.standing) setStanding(d.standing);
+    if (d.blocked) {
+      setView('feed');
+      return; // read-only: the banner explains, nothing was posted
+    }
     if (d.held) {
       setView('feed');
       setError('');
@@ -277,9 +289,11 @@ export default function ConnectScreen() {
               </View>
             )}
           </Pressable>
-          <Pressable style={styles.newBtn} onPress={() => setComposer(true)}>
-            <Text style={styles.newBtnText}>+ Post</Text>
-          </Pressable>
+          {!readOnly && (
+            <Pressable style={styles.newBtn} onPress={() => setComposer(true)}>
+              <Text style={styles.newBtnText}>+ Post</Text>
+            </Pressable>
+          )}
         </View>
       </View>
 
@@ -363,8 +377,14 @@ export default function ConnectScreen() {
       </View>
       )}
 
+      {view === 'feed' && <ConnectStandingBanner standing={standing} onChanged={loadAll} />}
       {view === 'feed' && error !== '' && <Text style={styles.errorText}>{error}</Text>}
-      <HeldWarningModal kind="post" visible={heldWarning} onUnderstand={() => setHeldWarning(false)} />
+      <HeldWarningModal
+        kind="post"
+        visible={heldWarning}
+        standing={standing}
+        onUnderstand={() => setHeldWarning(false)}
+      />
 
       {view === 'feed' && (!posts ? (
         <View style={styles.center}>
@@ -401,12 +421,12 @@ export default function ConnectScreen() {
               <Text style={styles.postBody}>{item.body}</Text>
               <View style={styles.postFoot}>
                 <View style={styles.voteRow}>
-                  <Pressable style={styles.likeRow} onPress={() => like(item)} hitSlop={8}>
+                  <Pressable style={styles.likeRow} onPress={() => like(item)} hitSlop={8} disabled={readOnly}>
                     <Text style={[styles.likeText, item.liked_by_me && styles.likedText]}>
                       {item.liked_by_me ? '❤️' : '🤍'} {item.like_count}
                     </Text>
                   </Pressable>
-                  {!item.is_mine && (
+                  {!item.is_mine && !readOnly && (
                     <Pressable style={styles.likeRow} onPress={() => downvote(item)} hitSlop={8}>
                       <Text style={[styles.downText, item.downvoted_by_me && styles.downOn]}>👎</Text>
                     </Pressable>

@@ -26,6 +26,11 @@ const COLLECTED: { what: string; why: string }[] = [
   { what: 'Your posts and replies', why: 'The HOPE feed. Coaches can read everything — that’s the deal.' },
   // Decision 5: only the day and pass/fail are kept, never the answers.
   { what: 'Whether you passed your Fuel Check each day', why: 'Your XP. Just yes or no for the day — never what you ate.' },
+  // Conduct record (2026-11-03): kept so coaches can be fair; deleted with the account.
+  {
+    what: 'Your Connect conduct record',
+    why: 'Posts or replies the filter held or a coach removed, and any fresh-start requests. Coaches use it to be fair. It goes when your account goes.',
+  },
   // Decision 2. DRAFT COPY — needs the pre-launch legal review (parents read this too).
   {
     what: 'Your beta group, if you’re in the beta',

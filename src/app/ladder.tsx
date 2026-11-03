@@ -73,13 +73,14 @@ export default function LadderScreen() {
       .eq('title', 'Wins')
       .maybeSingle();
     if (auth?.user && topic) {
-      await supabase.from('forum_posts').insert({
+      const { error: shareError } = await supabase.from('forum_posts').insert({
         topic_id: topic.id,
         author_id: auth.user.id,
         title: `🏅 New belt: ${label}`,
         body: `Just earned ${label}. One round at a time. 🥋`,
       });
-      setMessage('✓ Shared to the feed — see it on Connect');
+      // Refused while Connect is read-only for this kid (conduct record).
+      setMessage(shareError ? 'Sharing is off while Connect is read-only for you.' : '✓ Shared to the feed — see it on Connect');
     }
     setSharing(false);
     setCelebrate(null);
