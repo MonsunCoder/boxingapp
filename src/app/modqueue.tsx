@@ -15,9 +15,17 @@ import { supabase } from '../../lib/supabase';
  * Kept deliberately simple — the playbook's line is right: you don't need
  * perfect AI moderation now, you need report + filter + a way to act.
  * The LLM screening layer slots in front of this queue before launch.
+ *
+ * Decision 6: "Possible pile-on" items (queue_kind 'pile_on') are a separate
+ * card — never the filter's "held" wording or its Approve/Remove verbs. The
+ * post stays up untouched; the coach just looks and taps Seen. Vote counts
+ * appear here for staff only; kids never see a downvote count.
  */
 
 type QueueItem = {
+  queue_kind: 'review' | 'pile_on';
+  up_count?: number;
+  down_count?: number;
   type: 'post' | 'comment';
   id: string;
   status: string;
@@ -61,6 +69,13 @@ export default function ModQueueScreen() {
     await load();
   };
 
+  const markSeen = async (item: QueueItem) => {
+    setBusyId(item.id);
+    await supabase.rpc('mark_pileon_seen', { p_post: item.id });
+    setBusyId(null);
+    await load();
+  };
+
   if (error) {
     return (
       <View style={styles.center}>
@@ -95,9 +110,27 @@ export default function ModQueueScreen() {
       </View>
       <FlatList
         data={items}
-        keyExtractor={(i) => i.id}
+        keyExtractor={(i) => `${i.queue_kind}-${i.id}`}
         contentContainerStyle={{ padding: theme.space.md, paddingBottom: theme.space.xl }}
-        renderItem={({ item }) => (
+        renderItem={({ item }) =>
+          item.queue_kind === 'pile_on' ? (
+            <View style={[styles.card, styles.pileCard]}>
+              <Text style={styles.meta}>
+                📄 Post · {item.author_name} · <Text style={styles.pileTag}>POSSIBLE PILE-ON</Text>
+              </Text>
+              {item.title ? <Text style={styles.title}>{item.title}</Text> : null}
+              <Text style={styles.body}>{item.body}</Text>
+              <Text style={styles.pileCounts}>
+                👍 {item.up_count ?? 0} · 👎 {item.down_count ?? 0}  ·  still up, nothing changed
+              </Text>
+              <Pressable
+                style={[styles.btn, styles.seenBtn, busyId === item.id && styles.btnOff]}
+                disabled={busyId !== null}
+                onPress={() => markSeen(item)}>
+                <Text style={styles.btnText}>Seen</Text>
+              </Pressable>
+            </View>
+          ) : (
           <View style={styles.card}>
             <Text style={styles.meta}>
               {item.type === 'post' ? '📄 Post' : '💬 Reply'} · {item.author_name} ·{' '}
@@ -125,7 +158,8 @@ export default function ModQueueScreen() {
               </Pressable>
             </View>
           </View>
-        )}
+          )
+        }
       />
     </View>
   );
@@ -168,6 +202,10 @@ const styles = StyleSheet.create({
   approveBtn: { backgroundColor: theme.colors.green },
   removeBtn: { backgroundColor: theme.colors.danger },
   btnOff: { opacity: 0.5 },
+  pileCard: { borderColor: theme.colors.muted, borderStyle: 'dashed' },
+  pileTag: { color: theme.colors.text, fontWeight: '800' },
+  pileCounts: { fontSize: theme.font.small, color: theme.colors.muted },
+  seenBtn: { backgroundColor: theme.colors.line, flex: 0, marginTop: theme.space.xs },
   btnText: { color: '#fff', fontSize: theme.font.body, fontWeight: '800' },
 
   quietBtn: {

@@ -44,6 +44,7 @@ type Post = {
   created_at: string;
   like_count: number;
   liked_by_me: boolean;
+  downvoted_by_me: boolean; // Decision 6: only this kid's own vote, never a count
   is_mine: boolean;
 };
 
@@ -103,11 +104,13 @@ export default function ConnectScreen() {
   const [error, setError] = useState('');
 
   const loadFeed = useCallback(
-    async (topic: string | null, before: string | null, append: boolean) => {
+    // Decision 6: the feed is ranked (hidden downvotes can sink a post), so
+    // paging is by position; the server never sends its ranking value.
+    async (topic: string | null, offset: number, append: boolean) => {
       const { data, error: rpcError } = await supabase.rpc('feed_page', {
         p_topic: topic,
-        p_before: before,
         p_limit: PAGE,
+        p_offset: offset,
       });
       if (rpcError) {
         setError(rpcError.message);
@@ -115,7 +118,11 @@ export default function ConnectScreen() {
       }
       setError('');
       const page = (data as Post[]) ?? [];
-      setPosts((prev) => (append && prev ? [...prev, ...page] : page));
+      setPosts((prev) => {
+        if (!append || !prev) return page;
+        const seen = new Set(prev.map((p) => p.id));
+        return [...prev, ...page.filter((p) => !seen.has(p.id))];
+      });
       setHasMore(page.length === PAGE);
     },
     [],
@@ -134,7 +141,7 @@ export default function ConnectScreen() {
     // D8 bell: unseen = replies newer than the last time Activity was opened.
     const lastSeen = (await AsyncStorage.getItem(LAST_SEEN_KEY)) ?? '1970-01-01';
     setUnseen(items.filter((a) => a.created_at > lastSeen).length);
-    await loadFeed(topicFilter, null, false);
+    await loadFeed(topicFilter, 0, false);
   }, [loadFeed, topicFilter]);
 
   const openActivity = async () => {
@@ -166,7 +173,7 @@ export default function ConnectScreen() {
   const seeMore = async () => {
     if (!posts || posts.length === 0) return;
     setLoadingMore(true);
-    await loadFeed(topicFilter, posts[posts.length - 1].created_at, true);
+    await loadFeed(topicFilter, posts.length, true);
     setLoadingMore(false);
   };
 
@@ -181,12 +188,37 @@ export default function ConnectScreen() {
     );
     const { data, error: rpcError } = await supabase.rpc('toggle_like', { p_post: post.id });
     if (rpcError) {
-      await loadFeed(topicFilter, null, false); // resync on failure
+      await loadFeed(topicFilter, 0, false); // resync on failure
       return;
     }
     const d = data as { liked: boolean; like_count: number };
     setPosts((prev) =>
-      (prev ?? []).map((p) => (p.id === post.id ? { ...p, liked_by_me: d.liked, like_count: d.like_count } : p)),
+      (prev ?? []).map((p) =>
+        p.id === post.id
+          ? {
+              ...p,
+              liked_by_me: d.liked,
+              like_count: d.like_count,
+              // A like replaces this kid's downvote (one vote per post).
+              downvoted_by_me: d.liked ? false : p.downvoted_by_me,
+            }
+          : p,
+      ),
+    );
+  };
+
+  // Decision 6: hidden downvote. Only this kid's own state comes back —
+  // never a count. Not offered on your own post.
+  const downvote = async (post: Post) => {
+    const { data, error: rpcError } = await supabase.rpc('toggle_downvote', { p_post: post.id });
+    const d = data as { ok: boolean; downvoted: boolean; liked: boolean; like_count: number } | null;
+    if (rpcError || !d?.ok) return;
+    setPosts((prev) =>
+      (prev ?? []).map((p) =>
+        p.id === post.id
+          ? { ...p, downvoted_by_me: d.downvoted, liked_by_me: d.liked, like_count: d.like_count }
+          : p,
+      ),
     );
   };
 
@@ -220,7 +252,7 @@ export default function ConnectScreen() {
     } else {
       setHeldNotice('');
     }
-    await loadFeed(topicFilter, null, false);
+    await loadFeed(topicFilter, 0, false);
   };
 
   const milestone = (p: Post) => (p.title ?? '').startsWith('🏅');
@@ -365,11 +397,18 @@ export default function ConnectScreen() {
               ) : null}
               <Text style={styles.postBody}>{item.body}</Text>
               <View style={styles.postFoot}>
-                <Pressable style={styles.likeRow} onPress={() => like(item)} hitSlop={8}>
-                  <Text style={[styles.likeText, item.liked_by_me && styles.likedText]}>
-                    {item.liked_by_me ? '❤️' : '🤍'} {item.like_count}
-                  </Text>
-                </Pressable>
+                <View style={styles.voteRow}>
+                  <Pressable style={styles.likeRow} onPress={() => like(item)} hitSlop={8}>
+                    <Text style={[styles.likeText, item.liked_by_me && styles.likedText]}>
+                      {item.liked_by_me ? '❤️' : '🤍'} {item.like_count}
+                    </Text>
+                  </Pressable>
+                  {!item.is_mine && (
+                    <Pressable style={styles.likeRow} onPress={() => downvote(item)} hitSlop={8}>
+                      <Text style={[styles.downText, item.downvoted_by_me && styles.downOn]}>👎</Text>
+                    </Pressable>
+                  )}
+                </View>
                 <Text style={styles.replyHint}>💬 Reply ›</Text>
               </View>
             </Pressable>
@@ -590,6 +629,9 @@ const styles = StyleSheet.create({
   postTitle: { fontSize: theme.font.body, fontWeight: '800', color: theme.colors.text },
   postBody: { fontSize: theme.font.body, color: theme.colors.text, lineHeight: 21 },
   likeRow: { alignSelf: 'flex-start', marginTop: 2 },
+  voteRow: { flexDirection: 'row', alignItems: 'center', gap: theme.space.md },
+  downText: { fontSize: theme.font.small, opacity: 0.45 },
+  downOn: { opacity: 1 },
   likeText: { fontSize: theme.font.small, color: theme.colors.muted, fontWeight: '700' },
   likedText: { color: theme.colors.red },
 

@@ -37,6 +37,8 @@ type ThreadPost = {
   created_at: string;
   like_count: number;
   liked_by_me: boolean;
+  downvoted_by_me: boolean; // Decision 6: only this kid's own vote, never a count
+  is_mine: boolean;
 };
 
 function timeAgo(iso: string): string {
@@ -87,7 +89,23 @@ export default function PostThreadScreen() {
     setPost({ ...post, liked_by_me: !post.liked_by_me, like_count: post.like_count + (post.liked_by_me ? -1 : 1) });
     const { data } = await supabase.rpc('toggle_like', { p_post: post.id });
     const d = data as { liked: boolean; like_count: number } | null;
-    if (d) setPost((p) => (p ? { ...p, liked_by_me: d.liked, like_count: d.like_count } : p));
+    if (d)
+      setPost((p) =>
+        p
+          ? { ...p, liked_by_me: d.liked, like_count: d.like_count, downvoted_by_me: d.liked ? false : p.downvoted_by_me }
+          : p,
+      );
+  };
+
+  // Decision 6: hidden downvote — this kid's own state only, never a count.
+  const downvote = async () => {
+    if (!post) return;
+    const { data } = await supabase.rpc('toggle_downvote', { p_post: post.id });
+    const d = data as { ok: boolean; downvoted: boolean; liked: boolean; like_count: number } | null;
+    if (d?.ok)
+      setPost((p) =>
+        p ? { ...p, downvoted_by_me: d.downvoted, liked_by_me: d.liked, like_count: d.like_count } : p,
+      );
   };
 
   const sendReply = async () => {
@@ -173,11 +191,18 @@ export default function PostThreadScreen() {
               ) : null}
               <Text style={styles.postBody}>{post.body}</Text>
               <View style={styles.postFoot}>
-                <Pressable style={styles.likeRow} onPress={like} hitSlop={8}>
-                  <Text style={[styles.likeText, post.liked_by_me && styles.likedText]}>
-                    {post.liked_by_me ? '❤️' : '🤍'} {post.like_count}
-                  </Text>
-                </Pressable>
+                <View style={styles.voteRow}>
+                  <Pressable style={styles.likeRow} onPress={like} hitSlop={8}>
+                    <Text style={[styles.likeText, post.liked_by_me && styles.likedText]}>
+                      {post.liked_by_me ? '❤️' : '🤍'} {post.like_count}
+                    </Text>
+                  </Pressable>
+                  {!post.is_mine && (
+                    <Pressable style={styles.likeRow} onPress={downvote} hitSlop={8}>
+                      <Text style={[styles.downText, post.downvoted_by_me && styles.downOn]}>👎</Text>
+                    </Pressable>
+                  )}
+                </View>
                 <Pressable onPress={() => report('post', post.id)} hitSlop={8}>
                   <Text style={styles.reportText}>⚑ Report</Text>
                 </Pressable>
@@ -259,6 +284,9 @@ const styles = StyleSheet.create({
   likeRow: { alignSelf: 'flex-start', marginTop: 2 },
   postFoot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   reportText: { fontSize: theme.font.small, color: theme.colors.muted },
+  voteRow: { flexDirection: 'row', alignItems: 'center', gap: theme.space.md },
+  downText: { fontSize: theme.font.small, opacity: 0.45 },
+  downOn: { opacity: 1 },
   likeText: { fontSize: theme.font.small, color: theme.colors.muted, fontWeight: '700' },
   likedText: { color: theme.colors.red },
 
