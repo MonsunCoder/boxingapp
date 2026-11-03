@@ -27,7 +27,24 @@ type Impact = {
   streaks: { active: number; avg: number; best: number };
   ranks_awarded: number;
   community: { approved_posts: number; reports_resolved: number };
+  // Decision 2: beta pool (about 30 kids) split at random, half Pro, half free.
+  beta?: { on: boolean; pool: number; groups: { pro?: BetaGroup; free?: BetaGroup } };
 };
+
+type BetaGroup = {
+  kids: number;
+  too_few: boolean; // under app_config beta_min_group_report: size only, nothing else
+  active_7d?: number;
+  active_30d?: number;
+  completions_30d?: number;
+  ethics_kids?: number;
+};
+
+function betaLine(g: BetaGroup | undefined): string {
+  if (!g) return 'not split yet';
+  if (g.too_few) return `${g.kids} kids · too few to compare`;
+  return `${g.kids} kids · ${g.active_7d} active 7d · ${g.active_30d} active 30d · ${g.completions_30d} completions 30d · ${g.ethics_kids} reached by LESSONs`;
+}
 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -127,6 +144,25 @@ export default function ImpactScreen() {
             <Tile label="Consents granted" value={String(data.kids.consented)} />
           </View>
 
+          {data.beta && (
+            <>
+              <Text style={styles.section}>Beta groups</Text>
+              {data.beta.pool === 0 ? (
+                <Text style={styles.betaLine}>
+                  {data.beta.on ? 'Switch on · no kids in the pool yet.' : 'Off until this sprint’s testing ends.'}
+                </Text>
+              ) : (
+                <View style={styles.betaCard}>
+                  <Text style={styles.betaLine}>
+                    {data.beta.pool} in the pool · switch {data.beta.on ? 'on' : 'off'}
+                  </Text>
+                  <Text style={styles.betaLine}>💛 Pro group: {betaLine(data.beta.groups.pro)}</Text>
+                  <Text style={styles.betaLine}>Free group: {betaLine(data.beta.groups.free)}</Text>
+                </View>
+              )}
+            </>
+          )}
+
           <Text style={styles.footnote}>
             Definitions live in impact_summary() — one server function, so a grant report and this
             screen can never disagree.
@@ -183,6 +219,16 @@ const styles = StyleSheet.create({
   tileValue: { fontSize: theme.font.header, fontWeight: '800', color: theme.colors.text },
   tileLabel: { fontSize: 11, color: theme.colors.muted, textAlign: 'center' },
   tileSub: { fontSize: 10, color: theme.colors.muted, opacity: 0.8, textAlign: 'center' },
+
+  betaCard: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.line,
+    borderWidth: 1,
+    borderRadius: theme.radius.md,
+    padding: theme.space.md,
+    gap: 6,
+  },
+  betaLine: { fontSize: theme.font.small, color: theme.colors.text, lineHeight: 18 },
 
   footnote: { fontSize: theme.font.small, color: theme.colors.muted, textAlign: 'center', lineHeight: 18, marginTop: theme.space.md },
 });

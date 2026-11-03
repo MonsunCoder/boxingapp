@@ -41,6 +41,7 @@ Talk like a good coach, not a poster. Short sentences, a kid's voice, no preachi
 - Dry run first: run the change inside a transaction that rolls back, verify, then apply.
 - After any schema change, run the Supabase security advisor. Access rules on `access_codes`, `app_config`, `blocked_terms` and `orgs` deny everything on purpose (database functions only); that advisor notice is expected.
 - Public-schema database functions are revoked from `anon` and granted to `authenticated` and `service_role` explicitly. Keep it that way for every new function, with a pinned `search_path`.
+- Exceptions on purpose (service role only, never the app): `post_is_buried` (would reveal a hidden burial), `calorie_option_allowed` (would reveal another account's age bracket), and the admin tools `beta_pool_add`, `beta_split`, `beta_summary` (run from the Supabase SQL editor).
 - The free dev database auto-pauses after about a week idle. If calls time out, it is waking up; retry.
 
 ## The coach (hosted model)

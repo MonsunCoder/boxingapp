@@ -26,6 +26,11 @@ const COLLECTED: { what: string; why: string }[] = [
   { what: 'Your posts and replies', why: 'The HOPE feed. Coaches can read everything — that’s the deal.' },
   // Decision 5: only the day and pass/fail are kept, never the answers.
   { what: 'Whether you passed your Fuel Check each day', why: 'Your XP. Just yes or no for the day — never what you ate.' },
+  // Decision 2. DRAFT COPY — needs the pre-launch legal review (parents read this too).
+  {
+    what: 'Your beta group, if you’re in the beta',
+    why: 'During the free beta, some players get Pro features at no cost, picked at random, so we can learn what helps. Nothing is ever charged. Every LESSON and the nutrition basics stay free for everyone.',
+  },
 ];
 
 const NOT_COLLECTED: string[] = [
