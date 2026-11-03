@@ -38,7 +38,8 @@ type Template = {
 type MyPlan = { id: string; config: { template_id?: string; title?: string; days?: PlanDay[]; ai?: boolean } };
 
 const GOAL_LABEL: Record<string, string> = {
-  cut: '⚖️ Make weight',
+  // Decision 8 (2026-11-03): label only; the stored value stays 'cut'.
+  cut: '⚡ Light and Quick',
   maintain: '🔁 Hold steady',
   build: '🧱 Build',
 };
