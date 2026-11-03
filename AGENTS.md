@@ -39,7 +39,7 @@ Talk like a good coach, not a poster. Short sentences, a kid's voice, no preachi
 ## Database rules
 - Migrations are applied straight to Supabase (there is no local migrations folder). Name them `dayNN_short_name`.
 - Dry run first: run the change inside a transaction that rolls back, verify, then apply.
-- After any schema change, run the Supabase security advisor. Access rules on `access_codes`, `blocked_terms` and `orgs` deny everything on purpose (database functions only); that advisor notice is expected.
+- After any schema change, run the Supabase security advisor. Access rules on `access_codes`, `app_config`, `blocked_terms` and `orgs` deny everything on purpose (database functions only); that advisor notice is expected.
 - Public-schema database functions are revoked from `anon` and granted to `authenticated` and `service_role` explicitly. Keep it that way for every new function, with a pinned `search_path`.
 - The free dev database auto-pauses after about a week idle. If calls time out, it is waking up; retry.
 
