@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useAuth } from '@/components/auth/AuthProvider';
+import FuelCheckCard from '@/components/FuelCheckCard';
 import { PathwayInfo, TRACK_SECTIONS } from '@/constants/pathways';
 import { theme } from '@/constants/theme';
 import { supabase } from '../../lib/supabase';
@@ -180,6 +181,9 @@ export default function LearnScreen() {
                   </View>
                 );
               })}
+            {/* Decision 5: Fuel Check — daily habits, free forever */}
+            <FuelCheckCard />
+
             {/* Meal Plans entry (Day 31) — the basic customizer lives one tap deep */}
             <Pressable
               style={({ pressed }) => [styles.plansCard, pressed && styles.cardPressed]}

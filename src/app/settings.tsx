@@ -2,9 +2,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { theme } from '@/constants/theme';
+import { supabase } from '../../lib/supabase';
 
 /**
  * Day 37 — Settings & Reminders.
@@ -21,6 +22,10 @@ import { theme } from '@/constants/theme';
  * Expo Go, especially on Android (SDK 53+ removed support). The scheduling
  * code is real and correct; reliable delivery arrives with the EAS dev build
  * already planned for Apple Sign-In. The banner below says so honestly.
+ *
+ * Decision 5 (Option A): the calorie target section renders only when the
+ * SERVER says this account may use it (18+ by date of birth, option enabled
+ * in app_config). Off by default. LEGAL + CLINICAL REVIEW BEFORE LAUNCH.
  */
 
 Notifications.setNotificationHandler({
@@ -43,6 +48,10 @@ export default function SettingsScreen() {
   const [prefs, setPrefs] = useState<Prefs>({ questReminder: false, streakReminder: false });
   const [permission, setPermission] = useState<string>('unknown');
   const [message, setMessage] = useState('');
+  const [calorieAllowed, setCalorieAllowed] = useState(false);
+  const [calorieOn, setCalorieOn] = useState(false);
+  const [calorieTarget, setCalorieTarget] = useState('');
+  const [calorieMessage, setCalorieMessage] = useState('');
 
   useFocusEffect(
     useCallback(() => {
@@ -51,9 +60,40 @@ export default function SettingsScreen() {
         if (raw) setPrefs(JSON.parse(raw));
         const p = await Notifications.getPermissionsAsync();
         setPermission(p.status);
+        const { data: fuel } = await supabase.rpc('fuel_check_today');
+        const allowed = (fuel as { calorie_allowed?: boolean } | null)?.calorie_allowed === true;
+        setCalorieAllowed(allowed);
+        if (allowed) {
+          const { data: cal } = await supabase
+            .from('calorie_settings')
+            .select('enabled, daily_target')
+            .maybeSingle();
+          setCalorieOn(cal?.enabled === true);
+          setCalorieTarget(cal?.daily_target ? String(cal.daily_target) : '');
+        }
       })();
     }, []),
   );
+
+  const saveCalorie = async (on: boolean) => {
+    setCalorieMessage('');
+    const target = parseInt(calorieTarget, 10);
+    if (on && !(target >= 1000 && target <= 6000)) {
+      setCalorieMessage('Enter a daily target between 1,000 and 6,000 first.');
+      return;
+    }
+    const { data } = await supabase.rpc('set_calorie_target', {
+      p_enabled: on,
+      p_target: on ? target : null,
+    });
+    const d = data as { ok: boolean } | null;
+    if (!d?.ok) {
+      setCalorieMessage('Couldn’t save that. Try again.');
+      return;
+    }
+    setCalorieOn(on);
+    setCalorieMessage(on ? '✓ Saved. It shows on your Fuel Check.' : '✓ Off.');
+  };
 
   const ensurePermission = async (): Promise<boolean> => {
     const current = await Notifications.getPermissionsAsync();
@@ -184,6 +224,33 @@ export default function SettingsScreen() {
         System permission: {permission === 'granted' ? '✓ granted' : permission}
       </Text>
 
+      {calorieAllowed && (
+        <>
+          <Text style={styles.sectionTitle}>Calorie target (18+)</Text>
+          <Text style={styles.sectionBlurb}>
+            Optional, and off unless you turn it on. Only for accounts 18 or older. It shows on your
+            Fuel Check and nowhere else.
+          </Text>
+          <View style={styles.row}>
+            <TextInput
+              style={styles.targetInput}
+              value={calorieTarget}
+              onChangeText={(t) => setCalorieTarget(t.replace(/[^0-9]/g, '').slice(0, 4))}
+              placeholder="Daily target"
+              placeholderTextColor={theme.colors.muted}
+              keyboardType="number-pad"
+              editable={!calorieOn}
+            />
+            <Switch
+              value={calorieOn}
+              onValueChange={saveCalorie}
+              trackColor={{ true: theme.colors.red, false: theme.colors.line }}
+            />
+          </View>
+          {calorieMessage !== '' && <Text style={styles.message}>{calorieMessage}</Text>}
+        </>
+      )}
+
       <Text style={styles.sectionTitle}>Coming later</Text>
       <Text style={styles.sectionBlurb}>
         Reply notifications from the HOPE feed arrive with the server push build. Coach messages,
@@ -229,6 +296,7 @@ const styles = StyleSheet.create({
   },
   rowTitle: { fontSize: theme.font.body, fontWeight: '700', color: theme.colors.text },
   rowMeta: { fontSize: theme.font.small, color: theme.colors.muted, marginTop: 2 },
+  targetInput: { flex: 1, fontSize: theme.font.body, color: theme.colors.text, paddingVertical: 4 },
 
   testBtn: {
     backgroundColor: theme.colors.surface,

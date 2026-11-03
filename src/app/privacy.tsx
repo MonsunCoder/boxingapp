@@ -24,11 +24,14 @@ const COLLECTED: { what: string; why: string }[] = [
   { what: 'Your fight name + avatar', why: 'What other kids see. Never your email, never your real name unless you choose it.' },
   { what: 'What you complete (lessons, workouts, LESSONs)', why: 'Your XP, streak, belts, and quests — the whole point.' },
   { what: 'Your posts and replies', why: 'The HOPE feed. Coaches can read everything — that’s the deal.' },
+  // Decision 5: only the day and pass/fail are kept, never the answers.
+  { what: 'Whether you passed your Fuel Check each day', why: 'Your XP. Just yes or no for the day — never what you ate.' },
 ];
 
 const NOT_COLLECTED: string[] = [
   'Your choices inside LESSON scenarios — how you answer stays with you.',
-  'What you eat, your weight, or calories — we don’t ask, we don’t store.',
+  // Decision 5 (Option A): adults may save a calorie target; kids never can.
+  'What you eat, your weight, or calories — we don’t ask, we don’t store. (Adults 18+ can choose to save a calorie target; it’s off unless they turn it on.)',
   'Private messages — they don’t exist in this app, for anyone.',
   'Your location.',
   'Ad-tracking anything. There are no ads.',
