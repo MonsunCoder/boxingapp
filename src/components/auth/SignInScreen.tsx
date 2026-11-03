@@ -2,7 +2,6 @@ import { theme } from '@/constants/theme';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -60,7 +59,7 @@ export default function SignInScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      behavior="padding">
       <Text style={styles.logo}>🥊</Text>
       <Text style={styles.title}>BoxingApp</Text>
       <Text style={styles.subtitle}>Words first. Boxing after.</Text>

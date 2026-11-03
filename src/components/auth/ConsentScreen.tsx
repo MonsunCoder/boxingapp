@@ -2,7 +2,6 @@ import { theme } from '@/constants/theme';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -65,7 +64,7 @@ export default function ConsentScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      behavior="padding">
       <Text style={styles.emoji}>🤝</Text>
       <Text style={styles.title}>Ask a parent</Text>
       <Text style={styles.subtitle}>

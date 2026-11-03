@@ -39,9 +39,14 @@ function TabIcon({ glyph, focused }: { glyph: string; focused: boolean }) {
 
 export default function AppTabs() {
   return (
+    // backBehavior "history": Back (on-screen buttons and Android's back
+    // gesture) returns to the screen you came from, not the first tab.
     <Tabs
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
+        // Android draws edge to edge, so the bar would sit on the keyboard.
+        tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: theme.colors.red,
         tabBarInactiveTintColor: theme.colors.muted,
         tabBarStyle: {

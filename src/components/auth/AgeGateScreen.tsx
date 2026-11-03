@@ -2,7 +2,6 @@ import { theme } from '@/constants/theme';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -67,7 +66,7 @@ export default function AgeGateScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      behavior="padding">
       <Text style={styles.title}>When were you born?</Text>
       <Text style={styles.subtitle}>
         We use this to keep the app safe for your age. It is never shown to anyone.

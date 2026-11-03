@@ -6,7 +6,6 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -462,7 +461,7 @@ export default function ConnectScreen() {
       {/* Composer */}
       <Modal visible={composer} transparent animationType="slide">
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
           style={styles.composerWrap}>
           <View style={styles.composerCard}>
             <Text style={styles.composerTitle}>New post</Text>
