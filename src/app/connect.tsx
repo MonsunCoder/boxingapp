@@ -6,6 +6,7 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Modal,
+  RefreshControl,
   Pressable,
   StyleSheet,
   Text,
@@ -93,6 +94,7 @@ export default function ConnectScreen() {
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [challengeMsg, setChallengeMsg] = useState('');
   const [heldWarning, setHeldWarning] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   // Conduct record: the server decides; read-only hides posting and votes.
   const [standing, setStanding] = useState<ConnectStanding | null>(null);
   const readOnly = standing?.state === 'banned';
@@ -150,6 +152,19 @@ export default function ConnectScreen() {
     setUnseen(items.filter((a) => a.created_at > lastSeen).length);
     await loadFeed(topicFilter, 0, false);
   }, [loadFeed, topicFilter]);
+
+  // Pull to refresh: feed and bell (candidate, not yet decided).
+  const pullRefreshFeed = async () => {
+    setRefreshing(true);
+    await loadAll();
+    setRefreshing(false);
+  };
+  const pullRefreshActivity = async () => {
+    setRefreshing(true);
+    const { data: act } = await supabase.rpc('activity_page');
+    setActivity((act as ActivityItem[]) ?? []);
+    setRefreshing(false);
+  };
 
   const openActivity = async () => {
     setActivityOpen(true);
@@ -394,6 +409,9 @@ export default function ConnectScreen() {
         <FlatList
           data={posts}
           keyExtractor={(p) => p.id}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={pullRefreshFeed} tintColor={theme.colors.gold} colors={[theme.colors.gold]} />
+          }
           contentContainerStyle={{ paddingBottom: theme.space.xl }}
           ListEmptyComponent={
             <Text style={styles.empty}>
@@ -455,6 +473,9 @@ export default function ConnectScreen() {
             <FlatList
               data={activity}
               keyExtractor={(a, i) => `${a.post_id}-${i}`}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={pullRefreshActivity} tintColor={theme.colors.gold} colors={[theme.colors.gold]} />
+              }
               ListEmptyComponent={
                 <Text style={styles.empty}>Quiet so far. Post something worth replying to.</Text>
               }

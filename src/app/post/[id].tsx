@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  RefreshControl,
   KeyboardAvoidingView,
   Pressable,
   StyleSheet,
@@ -62,6 +63,7 @@ export default function PostThreadScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [heldWarning, setHeldWarning] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   // Conduct record: read-only kids can read and report, not reply or vote.
   const [standing, setStanding] = useState<ConnectStanding | null>(null);
   const readOnly = standing?.state === 'banned';
@@ -89,6 +91,13 @@ export default function PostThreadScreen() {
       load();
     }, [load]),
   );
+
+  // Pull to refresh (candidate, not yet decided).
+  const pullRefresh = async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  };
 
   const like = async () => {
     if (!post) return;
@@ -179,6 +188,9 @@ export default function PostThreadScreen() {
       <FlatList
         data={replies}
         keyExtractor={(r) => r.id}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={pullRefresh} tintColor={theme.colors.gold} colors={[theme.colors.gold]} />
+        }
         contentContainerStyle={styles.content}
         ListHeaderComponent={
           <>

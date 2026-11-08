@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { type Href, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/components/auth/AuthProvider';
 import {
@@ -52,6 +52,7 @@ function cumulativeXpFor(level: number, curve: CurveRow[]): number {
 export default function ProgressScreen() {
   const { session } = useAuth();
   const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
   const [totalXp, setTotalXp] = useState(0);
   const [level, setLevel] = useState(1);
   const [barPct, setBarPct] = useState(0);
@@ -138,11 +139,23 @@ export default function ProgressScreen() {
     }, [load, loadGuidance]),
   );
 
+  // Pull to refresh (candidate, not yet decided). Stats only: no coach call.
+  const pullRefresh = async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  };
+
   const questsDone = daily?.quests.filter((q) => q.done).length ?? 0;
   const topRec = guide?.premium ? (guide.recommendations ?? [])[0] : undefined;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={pullRefresh} tintColor={theme.colors.gold} colors={[theme.colors.gold]} />
+      }>
       <Text style={styles.header}>Progress</Text>
       {status !== '' && <Text style={styles.status}>{status}</Text>}
 
