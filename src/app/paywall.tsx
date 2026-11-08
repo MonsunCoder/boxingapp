@@ -1,6 +1,16 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Pressable,
+  ScrollView,
+  type ScrollViewInstance,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { theme } from '@/constants/theme';
 import { supabase } from '../../lib/supabase';
@@ -39,6 +49,8 @@ type Entitlement = { premium: boolean; source: string | null };
 
 export default function PaywallScreen() {
   const router = useRouter();
+  // Weekend test (Nov 7): on Android the keyboard covered the access-code box.
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const [ent, setEnt] = useState<Entitlement | null>(null);
   const [codeOpen, setCodeOpen] = useState(false);
   const [code, setCode] = useState('');
@@ -88,102 +100,109 @@ export default function PaywallScreen() {
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Pressable onPress={() => router.back()} hitSlop={12}>
-        <Text style={styles.back}>‹ Back</Text>
-      </Pressable>
-      <Text style={styles.title}>Free vs Pro</Text>
-      <Text style={styles.subtitle}>
-        The whole mission is free. Pro is extra depth for those who want it — and for those who
-        can&apos;t pay, the Access &amp; Funding Program covers it. Same Pro, no asterisks.
-      </Text>
+    <KeyboardAvoidingView style={styles.screen} behavior="padding">
+      <ScrollView
+        ref={scrollRef}
+        style={styles.screen}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled">
+        <Pressable onPress={() => router.back()} hitSlop={12}>
+          <Text style={styles.back}>‹ Back</Text>
+        </Pressable>
+        <Text style={styles.title}>Free vs Pro</Text>
+        <Text style={styles.subtitle}>
+          The whole mission is free. Pro is extra depth for those who want it — and for those who
+          can&apos;t pay, the Access &amp; Funding Program covers it. Same Pro, no asterisks.
+        </Text>
 
-      {ent?.premium && (
-        <View style={styles.proBanner}>
-          <Text style={styles.proBannerText}>
-            💛 You&apos;re Pro{ent.source === 'code' ? ' — Access & Funding Program' : ''}. Everything below is yours.
-          </Text>
-        </View>
-      )}
-
-      {/* The transparent split */}
-      <View style={styles.columns}>
-        <View style={styles.col}>
-          <Text style={styles.colHead}>Free — always</Text>
-          {FREE_SIDE.map((f) => (
-            <Text key={f} style={styles.colLine}>✓ {f}</Text>
-          ))}
-        </View>
-        <View style={[styles.col, styles.proCol]}>
-          <Text style={[styles.colHead, styles.proHead]}>Pro 💰</Text>
-          {PRO_SIDE.map((p) => (
-            <Text key={p} style={styles.colLine}>★ {p}</Text>
-          ))}
-        </View>
-      </View>
-
-      {!ent?.premium && (
-        <>
-          {/* Products (stubbed until the store build) */}
-          <View style={styles.priceRow}>
-            <Pressable style={styles.priceCard} onPress={() => stubPurchase('Monthly ($3.99/mo)')}>
-              <Text style={styles.price}>$3.99</Text>
-              <Text style={styles.priceMeta}>per month</Text>
-            </Pressable>
-            <Pressable style={[styles.priceCard, styles.priceBest]} onPress={() => stubPurchase('Yearly ($29.99/yr, 14-day free trial)')}>
-              <View style={styles.trialBadge}><Text style={styles.trialText}>14-DAY FREE TRIAL</Text></View>
-              <Text style={styles.price}>$29.99</Text>
-              <Text style={styles.priceMeta}>per year</Text>
-            </Pressable>
-            <Pressable style={styles.priceCard} onPress={() => stubPurchase('Lifetime ($99.99 once)')}>
-              <Text style={styles.price}>$99.99</Text>
-              <Text style={styles.priceMeta}>forever</Text>
-            </Pressable>
+        {ent?.premium && (
+          <View style={styles.proBanner}>
+            <Text style={styles.proBannerText}>
+              💛 You&apos;re Pro{ent.source === 'code' ? ' — Access & Funding Program' : ''}. Everything below is yours.
+            </Text>
           </View>
+        )}
 
-          {/* Equal-weight choices — A6's whole point */}
-          <View style={styles.choiceRow}>
-            <Pressable style={styles.choiceBtn} onPress={() => stubPurchase('The 14-day trial')}>
-              <Text style={styles.choiceText}>Start free trial</Text>
-            </Pressable>
-            <Pressable style={styles.choiceBtn} onPress={() => router.back()}>
-              <Text style={styles.choiceText}>Keep training free</Text>
-            </Pressable>
+        {/* The transparent split */}
+        <View style={styles.columns}>
+          <View style={styles.col}>
+            <Text style={styles.colHead}>Free — always</Text>
+            {FREE_SIDE.map((f) => (
+              <Text key={f} style={styles.colLine}>✓ {f}</Text>
+            ))}
           </View>
+          <View style={[styles.col, styles.proCol]}>
+            <Text style={[styles.colHead, styles.proHead]}>Pro 💰</Text>
+            {PRO_SIDE.map((p) => (
+              <Text key={p} style={styles.colLine}>★ {p}</Text>
+            ))}
+          </View>
+        </View>
 
-          {/* Day 39: the scholarship door */}
-          {!codeOpen ? (
-            <Pressable onPress={() => setCodeOpen(true)} hitSlop={8}>
-              <Text style={styles.codeLink}>Have an access code? 🎟️</Text>
-            </Pressable>
-          ) : (
-            <View style={styles.codeRow}>
-              <TextInput
-                style={styles.codeInput}
-                value={code}
-                onChangeText={setCode}
-                placeholder="HOPE-XXXXXX"
-                placeholderTextColor={theme.colors.muted}
-                autoCapitalize="characters"
-                autoCorrect={false}
-              />
-              <Pressable
-                style={[styles.redeemBtn, (busy || code.trim().length < 4) && { opacity: 0.5 }]}
-                disabled={busy || code.trim().length < 4}
-                onPress={redeem}>
-                <Text style={styles.redeemText}>{busy ? '…' : 'Redeem'}</Text>
+        {!ent?.premium && (
+          <>
+            {/* Products (stubbed until the store build) */}
+            <View style={styles.priceRow}>
+              <Pressable style={styles.priceCard} onPress={() => stubPurchase('Monthly ($3.99/mo)')}>
+                <Text style={styles.price}>$3.99</Text>
+                <Text style={styles.priceMeta}>per month</Text>
+              </Pressable>
+              <Pressable style={[styles.priceCard, styles.priceBest]} onPress={() => stubPurchase('Yearly ($29.99/yr, 14-day free trial)')}>
+                <View style={styles.trialBadge}><Text style={styles.trialText}>14-DAY FREE TRIAL</Text></View>
+                <Text style={styles.price}>$29.99</Text>
+                <Text style={styles.priceMeta}>per year</Text>
+              </Pressable>
+              <Pressable style={styles.priceCard} onPress={() => stubPurchase('Lifetime ($99.99 once)')}>
+                <Text style={styles.price}>$99.99</Text>
+                <Text style={styles.priceMeta}>forever</Text>
               </Pressable>
             </View>
-          )}
-        </>
-      )}
-      {message !== '' && <Text style={styles.message}>{message}</Text>}
 
-      <Text style={styles.footnote}>
-        Schools, gyms, and sponsors can fund seat blocks so kids train Pro for free — that&apos;s
-        the Access &amp; Funding Program. Ask your coach.
-      </Text>
-    </ScrollView>
+            {/* Equal-weight choices — A6's whole point */}
+            <View style={styles.choiceRow}>
+              <Pressable style={styles.choiceBtn} onPress={() => stubPurchase('The 14-day trial')}>
+                <Text style={styles.choiceText}>Start free trial</Text>
+              </Pressable>
+              <Pressable style={styles.choiceBtn} onPress={() => router.back()}>
+                <Text style={styles.choiceText}>Keep training free</Text>
+              </Pressable>
+            </View>
+
+            {/* Day 39: the scholarship door */}
+            {!codeOpen ? (
+              <Pressable onPress={() => setCodeOpen(true)} hitSlop={8}>
+                <Text style={styles.codeLink}>Have an access code? 🎟️</Text>
+              </Pressable>
+            ) : (
+              <View style={styles.codeRow}>
+                <TextInput
+                  style={styles.codeInput}
+                  value={code}
+                  onChangeText={setCode}
+                  placeholder="HOPE-XXXXXX"
+                  placeholderTextColor={theme.colors.muted}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300)}
+                />
+                <Pressable
+                  style={[styles.redeemBtn, (busy || code.trim().length < 4) && { opacity: 0.5 }]}
+                  disabled={busy || code.trim().length < 4}
+                  onPress={redeem}>
+                  <Text style={styles.redeemText}>{busy ? '…' : 'Redeem'}</Text>
+                </Pressable>
+              </View>
+            )}
+          </>
+        )}
+        {message !== '' && <Text style={styles.message}>{message}</Text>}
+
+        <Text style={styles.footnote}>
+          Schools, gyms, and sponsors can fund seat blocks so kids train Pro for free — that&apos;s
+          the Access &amp; Funding Program. Ask your coach.
+        </Text>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

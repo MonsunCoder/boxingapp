@@ -1,8 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import {
+  KeyboardAvoidingView,
+  Pressable,
+  ScrollView,
+  type ScrollViewInstance,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { theme } from '@/constants/theme';
 import { supabase } from '../../lib/supabase';
@@ -45,6 +55,8 @@ const STREAK_ID_KEY = 'notifId_streak';
 
 export default function SettingsScreen() {
   const router = useRouter();
+  // Weekend test (Nov 7): keep the calorie box above the Android keyboard.
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const [prefs, setPrefs] = useState<Prefs>({ questReminder: false, streakReminder: false });
   const [permission, setPermission] = useState<string>('unknown');
   const [message, setMessage] = useState('');
@@ -172,91 +184,98 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Pressable onPress={() => router.back()} hitSlop={12}>
-        <Text style={styles.back}>‹ Account</Text>
-      </Pressable>
-      <Text style={styles.title}>Settings & Reminders</Text>
+    <KeyboardAvoidingView style={styles.screen} behavior="padding">
+      <ScrollView
+        ref={scrollRef}
+        style={styles.screen}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled">
+        <Pressable onPress={() => router.back()} hitSlop={12}>
+          <Text style={styles.back}>‹ Account</Text>
+        </Pressable>
+        <Text style={styles.title}>Settings & Reminders</Text>
 
-      {__DEV__ && (
-        <View style={styles.devNote}>
-          <Text style={styles.devNoteText}>
-            🛠 DEV BUILD: in Expo Go (especially Android) scheduled notifications may not deliver —
-            the code is real; reliable delivery comes with the EAS development build.
-          </Text>
-        </View>
-      )}
-
-      <Text style={styles.sectionTitle}>Gentle reminders</Text>
-      <Text style={styles.sectionBlurb}>
-        One nudge each, once a day, only if you want them. Never more.
-      </Text>
-
-      <View style={styles.row}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.rowTitle}>Morning quests · 9:00</Text>
-          <Text style={styles.rowMeta}>“Today’s quests are up” — the day’s three small wins.</Text>
-        </View>
-        <Switch
-          value={prefs.questReminder}
-          onValueChange={toggleQuest}
-          trackColor={{ true: theme.colors.red, false: theme.colors.line }}
-        />
-      </View>
-
-      <View style={styles.row}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.rowTitle}>Evening streak guard · 19:00</Text>
-          <Text style={styles.rowMeta}>“Keep the flame” — a heads-up before the day ends.</Text>
-        </View>
-        <Switch
-          value={prefs.streakReminder}
-          onValueChange={toggleStreak}
-          trackColor={{ true: theme.colors.red, false: theme.colors.line }}
-        />
-      </View>
-
-      <Pressable style={styles.testBtn} onPress={sendTest}>
-        <Text style={styles.testText}>Send a test notification</Text>
-      </Pressable>
-      {message !== '' && <Text style={styles.message}>{message}</Text>}
-      <Text style={styles.permLine}>
-        System permission: {permission === 'granted' ? '✓ granted' : permission}
-      </Text>
-
-      {calorieAllowed && (
-        <>
-          <Text style={styles.sectionTitle}>Calorie target (18+)</Text>
-          <Text style={styles.sectionBlurb}>
-            Optional, and off unless you turn it on. Only for accounts 18 or older. It shows on your
-            Fuel Check and nowhere else.
-          </Text>
-          <View style={styles.row}>
-            <TextInput
-              style={styles.targetInput}
-              value={calorieTarget}
-              onChangeText={(t) => setCalorieTarget(t.replace(/[^0-9]/g, '').slice(0, 4))}
-              placeholder="Daily target"
-              placeholderTextColor={theme.colors.muted}
-              keyboardType="number-pad"
-              editable={!calorieOn}
-            />
-            <Switch
-              value={calorieOn}
-              onValueChange={saveCalorie}
-              trackColor={{ true: theme.colors.red, false: theme.colors.line }}
-            />
+        {__DEV__ && (
+          <View style={styles.devNote}>
+            <Text style={styles.devNoteText}>
+              🛠 DEV BUILD: in Expo Go (especially Android) scheduled notifications may not deliver —
+              the code is real; reliable delivery comes with the EAS development build.
+            </Text>
           </View>
-          {calorieMessage !== '' && <Text style={styles.message}>{calorieMessage}</Text>}
-        </>
-      )}
+        )}
 
-      <Text style={styles.sectionTitle}>Coming later</Text>
-      <Text style={styles.sectionBlurb}>
-        Reply notifications from the HOPE feed arrive with the server push build. Coach messages,
-        same. Both will respect the same gentle-by-policy rule.
-      </Text>
-    </ScrollView>
+        <Text style={styles.sectionTitle}>Gentle reminders</Text>
+        <Text style={styles.sectionBlurb}>
+          One nudge each, once a day, only if you want them. Never more.
+        </Text>
+
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowTitle}>Morning quests · 9:00</Text>
+            <Text style={styles.rowMeta}>“Today’s quests are up” — the day’s three small wins.</Text>
+          </View>
+          <Switch
+            value={prefs.questReminder}
+            onValueChange={toggleQuest}
+            trackColor={{ true: theme.colors.red, false: theme.colors.line }}
+          />
+        </View>
+
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowTitle}>Evening streak guard · 19:00</Text>
+            <Text style={styles.rowMeta}>“Keep the flame” — a heads-up before the day ends.</Text>
+          </View>
+          <Switch
+            value={prefs.streakReminder}
+            onValueChange={toggleStreak}
+            trackColor={{ true: theme.colors.red, false: theme.colors.line }}
+          />
+        </View>
+
+        <Pressable style={styles.testBtn} onPress={sendTest}>
+          <Text style={styles.testText}>Send a test notification</Text>
+        </Pressable>
+        {message !== '' && <Text style={styles.message}>{message}</Text>}
+        <Text style={styles.permLine}>
+          System permission: {permission === 'granted' ? '✓ granted' : permission}
+        </Text>
+
+        {calorieAllowed && (
+          <>
+            <Text style={styles.sectionTitle}>Calorie target (18+)</Text>
+            <Text style={styles.sectionBlurb}>
+              Optional, and off unless you turn it on. Only for accounts 18 or older. It shows on your
+              Fuel Check and nowhere else.
+            </Text>
+            <View style={styles.row}>
+              <TextInput
+                style={styles.targetInput}
+                value={calorieTarget}
+                onChangeText={(t) => setCalorieTarget(t.replace(/[^0-9]/g, '').slice(0, 4))}
+                onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300)}
+                placeholder="Daily target"
+                placeholderTextColor={theme.colors.muted}
+                keyboardType="number-pad"
+                editable={!calorieOn}
+              />
+              <Switch
+                value={calorieOn}
+                onValueChange={saveCalorie}
+                trackColor={{ true: theme.colors.red, false: theme.colors.line }}
+              />
+            </View>
+            {calorieMessage !== '' && <Text style={styles.message}>{calorieMessage}</Text>}
+          </>
+        )}
+
+        <Text style={styles.sectionTitle}>Coming later</Text>
+        <Text style={styles.sectionBlurb}>
+          Reply notifications from the HOPE feed arrive with the server push build. Coach messages,
+          same. Both will respect the same gentle-by-policy rule.
+        </Text>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

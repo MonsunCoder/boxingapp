@@ -456,12 +456,12 @@ export default function TrainScreen() {
           <Text style={styles.cardLabel}>{isReps ? 'Exercises' : 'Rounds'}</Text>
           {isReps
             ? exercises.map((ex, i) => (
-                <Text key={ex.name} style={styles.cardBody}>
+                <Text key={`${i}-${ex.name}`} style={styles.cardBody}>
                   {i + 1}. {ex.name} — {ex.sets} × {ex.reps}
                 </Text>
               ))
             : actions.map((a, i) => (
-                <Text key={a.name} style={styles.cardBody}>
+                <Text key={`${i}-${a.name}`} style={styles.cardBody}>
                   {i + 1}. {a.name} — {Math.round(a.roundSeconds / 60)} min
                 </Text>
               ))}
@@ -569,13 +569,16 @@ export default function TrainScreen() {
             <Text style={styles.cardMeta}>How hard was that?</Text>
             <View style={styles.effortRow}>
               <Pressable style={styles.effortBtn} onPress={() => sendEffort('easy')}>
-                <Text style={styles.effortText}>😤 Too easy</Text>
+                <Text style={styles.effortEmoji}>😤</Text>
+                <Text style={styles.effortText} numberOfLines={1} adjustsFontSizeToFit>Too easy</Text>
               </Pressable>
               <Pressable style={styles.effortBtn} onPress={() => sendEffort('right')}>
-                <Text style={styles.effortText}>✅ Just right</Text>
+                <Text style={styles.effortEmoji}>✅</Text>
+                <Text style={styles.effortText} numberOfLines={1} adjustsFontSizeToFit>Just right</Text>
               </Pressable>
               <Pressable style={styles.effortBtn} onPress={() => sendEffort('hard')}>
-                <Text style={styles.effortText}>🥵 Maxed out</Text>
+                <Text style={styles.effortEmoji}>🥵</Text>
+                <Text style={styles.effortText} numberOfLines={1} adjustsFontSizeToFit>Maxed out</Text>
               </Pressable>
             </View>
           </View>
@@ -711,8 +714,12 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.line,
     borderRadius: theme.radius.md,
     paddingVertical: 10,
+    paddingHorizontal: 6,
     alignItems: 'center',
+    gap: 2,
   },
+  // Weekend test (Nov 7): emoji on its own line so "Too easy" never wraps and gets cut off.
+  effortEmoji: { fontSize: 20 },
   effortText: { fontSize: theme.font.small, color: theme.colors.text, fontWeight: '700' },
   startBtn: {
     backgroundColor: theme.colors.red,

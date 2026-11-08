@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useAuth } from '@/components/auth/AuthProvider';
 import { theme } from '@/constants/theme';
@@ -63,6 +63,7 @@ export default function AccountScreen() {
   );
 
   const saveProfile = async (nextAvatar?: string) => {
+    Keyboard.dismiss(); // Weekend test (Nov 7): close the keyboard on Save name.
     setBusy(true);
     setMessage('');
     const { error } = await supabase.rpc('update_my_profile', {
