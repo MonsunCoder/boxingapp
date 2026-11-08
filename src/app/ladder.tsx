@@ -12,6 +12,8 @@ import {
   roman,
   tierLabel,
 } from '@/constants/ranks';
+import HeldWarningModal from '@/components/HeldWarningModal';
+import type { ConnectStanding } from '@/constants/conduct';
 import { theme } from '@/constants/theme';
 import { supabase } from '../../lib/supabase';
 
@@ -62,25 +64,35 @@ export default function LadderScreen() {
   const [busy, setBusy] = useState(false);
   const [celebrate, setCelebrate] = useState<{ tier: string; degree: number } | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [heldWarning, setHeldWarning] = useState(false);
+  const [heldStanding, setHeldStanding] = useState<ConnectStanding | null>(null);
 
   // Day 34: share the new belt straight to the HOPE feed (t/Wins).
   const shareWin = async (label: string) => {
     setSharing(true);
-    const { data: auth } = await supabase.auth.getUser();
     const { data: topic } = await supabase
       .from('forum_topics')
       .select('id')
       .eq('title', 'Wins')
       .maybeSingle();
-    if (auth?.user && topic) {
-      const { error: shareError } = await supabase.from('forum_posts').insert({
-        topic_id: topic.id,
-        author_id: auth.user.id,
-        title: `🏅 New belt: ${label}`,
-        body: `Just earned ${label}. One round at a time. 🥋`,
+    if (topic) {
+      // Security Change 1: every post goes through create_post (word filter, hold, conduct record).
+      const { data, error: shareError } = await supabase.rpc('create_post', {
+        p_topic: topic.id,
+        p_title: `🏅 New belt: ${label}`,
+        p_body: `Just earned ${label}. One round at a time. 🥋`,
       });
-      // Refused while Connect is read-only for this kid (conduct record).
-      setMessage(shareError ? 'Sharing is off while Connect is read-only for you.' : '✓ Shared to the feed — see it on Connect');
+      const shared = data as { held?: boolean; blocked?: string; standing?: ConnectStanding } | null;
+      if (shareError) {
+        setMessage(`⚠ ${shareError.message}`);
+      } else if (shared?.blocked === 'connect_read_only') {
+        setMessage('Sharing is off while Connect is read-only for you.');
+      } else if (shared?.held) {
+        setHeldStanding(shared.standing ?? null);
+        setHeldWarning(true);
+      } else {
+        setMessage('✓ Shared to the feed — see it on Connect');
+      }
     }
     setSharing(false);
     setCelebrate(null);
@@ -337,6 +349,12 @@ export default function LadderScreen() {
           </View>
         </View>
       </Modal>
+      <HeldWarningModal
+        kind="post"
+        visible={heldWarning}
+        standing={heldStanding}
+        onUnderstand={() => setHeldWarning(false)}
+      />
     </ScrollView>
   );
 }
