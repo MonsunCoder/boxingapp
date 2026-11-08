@@ -199,11 +199,14 @@ export default function PostThreadScreen() {
               <Text style={styles.postBody}>{post.body}</Text>
               <View style={styles.postFoot}>
                 <View style={styles.voteRow}>
-                  <Pressable style={styles.likeRow} onPress={like} hitSlop={8} disabled={readOnly}>
-                    <Text style={[styles.likeText, post.liked_by_me && styles.likedText]}>
-                      {post.liked_by_me ? '❤️' : '🤍'} {post.like_count}
-                    </Text>
-                  </Pressable>
+                  {/* Jigar (Nov 7): the heart and its count disappear while Connect is read-only. */}
+                  {!readOnly && (
+                    <Pressable style={styles.likeRow} onPress={like} hitSlop={8}>
+                      <Text style={[styles.likeText, post.liked_by_me && styles.likedText]}>
+                        {post.liked_by_me ? '❤️' : '🤍'} {post.like_count}
+                      </Text>
+                    </Pressable>
+                  )}
                   {!post.is_mine && !readOnly && (
                     <Pressable style={styles.likeRow} onPress={downvote} hitSlop={8}>
                       <Text style={[styles.downText, post.downvoted_by_me && styles.downOn]}>👎</Text>

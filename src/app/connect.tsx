@@ -421,11 +421,14 @@ export default function ConnectScreen() {
               <Text style={styles.postBody}>{item.body}</Text>
               <View style={styles.postFoot}>
                 <View style={styles.voteRow}>
-                  <Pressable style={styles.likeRow} onPress={() => like(item)} hitSlop={8} disabled={readOnly}>
-                    <Text style={[styles.likeText, item.liked_by_me && styles.likedText]}>
-                      {item.liked_by_me ? '❤️' : '🤍'} {item.like_count}
-                    </Text>
-                  </Pressable>
+                  {/* Jigar (Nov 7): the heart and its count disappear while Connect is read-only. */}
+                  {!readOnly && (
+                    <Pressable style={styles.likeRow} onPress={() => like(item)} hitSlop={8}>
+                      <Text style={[styles.likeText, item.liked_by_me && styles.likedText]}>
+                        {item.liked_by_me ? '❤️' : '🤍'} {item.like_count}
+                      </Text>
+                    </Pressable>
+                  )}
                   {!item.is_mine && !readOnly && (
                     <Pressable style={styles.likeRow} onPress={() => downvote(item)} hitSlop={8}>
                       <Text style={[styles.downText, item.downvoted_by_me && styles.downOn]}>👎</Text>
