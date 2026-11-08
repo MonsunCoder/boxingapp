@@ -16,7 +16,7 @@ import { useAuth } from './AuthProvider';
  * branches under-13 vs 13+. Neutral, non-judgy copy per SPEC (A2).
  */
 export default function AgeGateScreen() {
-  const { session, refreshProfile } = useAuth();
+  const { refreshProfile } = useAuth();
   const [month, setMonth] = useState('');
   const [day, setDay] = useState('');
   const [year, setYear] = useState('');
@@ -45,21 +45,18 @@ export default function AgeGateScreen() {
       return;
     }
 
-    // Age as of today
-    let age = now.getFullYear() - y;
-    if (now.getMonth() + 1 < m || (now.getMonth() + 1 === m && now.getDate() < d)) age -= 1;
-    const isMinor = age < 13;
     const iso = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 
     setBusy(true);
     setMessage('');
-    const { error } = await supabase
-      .from('profiles')
-      .update({ dob: iso, is_minor: isMinor })
-      .eq('id', session!.user.id);
+    // Security Change 2: the server saves the date once and works out the under-13 flag.
+    const { data, error } = await supabase.rpc('set_birth_date', { p_dob: iso });
     setBusy(false);
 
+    const result = data as { ok: boolean; reason?: string } | null;
     if (error) setMessage(error.message);
+    else if (result?.reason === 'bad_date') setMessage('That date does not look right — double-check it.');
+    else if (result?.reason === 'already_set') setMessage('Your birthday is already saved. If it is wrong, ask a coach to fix it.');
     else await refreshProfile(); // AuthGate branches: 13+ -> app, under-13 -> consent
   };
 

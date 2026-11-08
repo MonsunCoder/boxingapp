@@ -20,7 +20,7 @@ import { useAuth } from './AuthProvider';
  * The token below is a placeholder; the real one gets minted server-side.
  */
 export default function ConsentScreen() {
-  const { session, refreshProfile, signOut } = useAuth();
+  const { refreshProfile, signOut } = useAuth();
   const [parentEmail, setParentEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -34,30 +34,15 @@ export default function ConsentScreen() {
     setBusy(true);
     setMessage('');
 
-    const placeholderToken =
-      Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-
-    const uid = session!.user.id;
-    const { error: insertError } = await supabase.from('parental_consents').insert({
-      child_id: uid,
-      parent_email: target,
-      token: placeholderToken,
-      status: 'pending',
-    });
-
-    if (insertError) {
-      setBusy(false);
-      setMessage(insertError.message);
-      return;
-    }
-
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ consent_status: 'pending' })
-      .eq('id', uid);
+    // Security Change 2: the server makes the token and saves the request.
+    const { data, error } = await supabase.rpc('request_parental_consent', { p_parent_email: target });
     setBusy(false);
 
-    if (updateError) setMessage(updateError.message);
+    const result = data as { ok: boolean; reason?: string } | null;
+    if (error) setMessage(error.message);
+    else if (result?.reason === 'bad_email') setMessage('Hmm, that does not look like an email address.');
+    else if (result?.reason === 'too_many') setMessage('That is enough requests for today. Try again tomorrow.');
+    else if (result?.ok === false) setMessage('That did not go through. Try again in a bit.');
     else await refreshProfile(); // AuthGate -> WaitingScreen
   };
 

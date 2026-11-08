@@ -16,6 +16,7 @@ export default function WaitingScreen() {
   const { session, profile, refreshProfile, signOut } = useAuth();
   const [parentEmail, setParentEmail] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
 
   useEffect(() => {
     if (!session) return;
@@ -40,10 +41,10 @@ export default function WaitingScreen() {
   const changeEmail = async () => {
     // Send the flow back to the consent screen to enter a different address.
     setBusy(true);
-    await supabase
-      .from('profiles')
-      .update({ consent_status: 'not_required' })
-      .eq('id', session!.user.id);
+    // Security Change 2: the server allows this only while a request is pending.
+    const { data } = await supabase.rpc('restart_consent');
+    const result = data as { ok: boolean } | null;
+    if (result?.ok === false) setNote('That can\u2019t change right now. Ask your coach.');
     await refreshProfile();
     setBusy(false);
   };
@@ -74,6 +75,7 @@ export default function WaitingScreen() {
       <Pressable onPress={changeEmail} disabled={busy} hitSlop={8}>
         <Text style={styles.link}>Use a different parent email</Text>
       </Pressable>
+      {note !== '' && <Text style={styles.link}>{note}</Text>}
       <Pressable onPress={signOut} disabled={busy} hitSlop={8}>
         <Text style={styles.link}>Sign out</Text>
       </Pressable>
