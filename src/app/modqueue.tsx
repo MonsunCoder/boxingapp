@@ -136,7 +136,10 @@ export default function ModQueueScreen() {
               {item.body ? <Text style={styles.body}>“{item.body}”</Text> : null}
               <Text style={styles.recordHead}>
                 Conduct record: {item.offense_total ?? 0} counted offense
-                {(item.offense_total ?? 0) === 1 ? '' : 's'} (newest first)
+                {(item.offense_total ?? 0) === 1 ? '' : 's'}
+                {(item.offenses ?? []).length < (item.offense_total ?? 0)
+                  ? ` (newest ${(item.offenses ?? []).length} shown)`
+                  : ' (newest first)'}
               </Text>
               {(item.offenses ?? []).map((o, i) => (
                 <Text key={i} style={styles.recordLine} numberOfLines={2}>
